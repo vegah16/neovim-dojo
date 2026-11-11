@@ -1,0 +1,111 @@
+local a = require("neovim_dojo.author")
+return {
+  id = "visual-editing",
+  title = "Visual and Block Editing",
+  description = "Choose, recover and edit precise selections across uneven lines.",
+  source = { kind = "vim" },
+  topics = { "text-editing", "selection" },
+  lessons = {
+    a.lesson(
+      "visual-selection-kinds",
+      "Choose a selection kind",
+      "Remove the complete middle line with a linewise selection.",
+      {
+        "`v` selects characters, `V` selects lines, and `<C-v>` selects a rectangle.",
+        "On `remove this line`, press `Vd`. Keep both neighboring lines exactly intact.",
+      },
+      { "keep before", "remove this line", "keep after" },
+      { lines = { "keep before", "keep after" } },
+      { cursor = { 2, 4 }, keywords = { "v", "V", "C-v" } }
+    ),
+    a.lesson(
+      "visual-ends-and-reselect",
+      "Switch ends and reselect",
+      "Uppercase exactly `amber birch` without changing the trailing word.",
+      {
+        "Select `amber` with `viw`, use `o` to switch the active end, and `o` again to return.",
+        "Extend to the end of `birch` with `e`, then press `U`. `gv` restores your previous visual selection if you leave it accidentally.",
+        "Finish with `AMBER BIRCH cedar`; the checker checks the output, not which selection recovery you used.",
+      },
+      { "amber birch cedar" },
+      { lines = { "AMBER BIRCH cedar" } },
+      { keywords = { "o", "gv", "visual", "U" } }
+    ),
+    a.lesson(
+      "block-insert-column",
+      "Insert a repeated column",
+      "Prefix all three lines with `# ` using block Insert.",
+      {
+        "At column zero, press `<C-v>jjI# <Esc>` and wait for Normal mode: the inserted text is repeated on the other selected lines.",
+        "The short middle line is intentional. Block mode uses columns rather than matching words.",
+      },
+      { "alpha", "b", "  gamma" },
+      { lines = { "# alpha", "# b", "#   gamma" } },
+      { keywords = { "C-v", "I", "block", "column" } }
+    ),
+    a.lesson(
+      "block-delete-rectangle",
+      "Delete a rectangle",
+      "Delete the two-character status column without altering the following fields.",
+      {
+        "At column zero use `<C-v>jjld` to select two columns across three rows and delete them.",
+        "A rectangular selection can cross different words and indentation. Compare its edges before applying an operator.",
+      },
+      { "x alpha", "y b", "z   gamma" },
+      { lines = { "alpha", "b", "  gamma" } },
+      { keywords = { "C-v", "rectangle", "d" } }
+    ),
+    a.drill(
+      "column-patch-drill",
+      "Patch repeated columns",
+      "Insert or delete a column across short and indented rows.",
+      {
+        "Use block `I` for insertion or block `d` for deletion. Preserve all content outside the requested rectangle.",
+      },
+      {
+        {
+          goal = "Prefix each row with # and a space",
+          lines = { "alpha", "b", "  gamma" },
+          check = { lines = { "# alpha", "# b", "#   gamma" } },
+        },
+        {
+          goal = "Remove the two-character prefix on each row",
+          lines = { "x one", "y z", "z   three" },
+          check = { lines = { "one", "z", "  three" } },
+        },
+        {
+          goal = "Prefix each row with > and a space",
+          lines = { "  north", "s", "east" },
+          check = { lines = { ">   north", "> s", "> east" } },
+        },
+      }
+    ),
+    a.drill(
+      "selection-boundary-drill",
+      "Repair selection boundaries",
+      "Uppercase exact fields while preserving punctuation and adjacent words.",
+      {
+        "Use characterwise or linewise selection and `U`. `o` moves the active end; `gv` recovers the last selection.",
+      },
+      {
+        {
+          goal = "Uppercase amber birch, keep cedar lowercase",
+          lines = { "amber birch cedar" },
+          check = { lines = { "AMBER BIRCH cedar" } },
+        },
+        {
+          goal = "Uppercase only beta inside brackets",
+          lines = { "[beta] gamma" },
+          cursor = { 1, 1 },
+          check = { lines = { "[BETA] gamma" } },
+        },
+        {
+          goal = "Uppercase the complete middle row only",
+          lines = { "keep", "two words", "stay" },
+          cursor = { 2, 0 },
+          check = { lines = { "keep", "TWO WORDS", "stay" } },
+        },
+      }
+    ),
+  },
+}
