@@ -15,6 +15,56 @@ else
 end
 
 dojo.clear_progress(true)
+
+-- Path progress and the next entry are derived from task completion.
+do
+  local path = dojo.find_path("neovim-fundamentals")
+  local first, second = dojo.find_lesson(path.entries[1]), dojo.find_lesson(path.entries[2])
+  local progress = dojo.path_progress("neovim-fundamentals")
+  assert(progress.completed == 0 and progress.total == #path.entries, "a path starts with nothing complete")
+  assert(dojo.path_progress("no-such-path") == nil and select(2, dojo.next_path_entry("no-such-path")) == "unknown_path")
+  local entry = dojo.next_path_entry(path)
+  assert(entry.task == first and entry.position == 1 and entry.available, "resume begins at the first entry")
+  assert(dojo.toggle_completion(first))
+  assert(dojo.path_progress(path).completed == 1, "progress accepts a path or its ID")
+  assert(dojo.next_path_entry(path).task == second, "resume passes completed entries")
+  assert(select(2, dojo.next_path_entry(path, "inspect-registers")) == "entry_not_in_path")
+  assert(dojo.next_path_entry(path, second.id).position == 3, "the search continues after the given entry")
+  assert(select(2, dojo.next_path_entry(path, path.entries[#path.entries])) == "no_incomplete_entry")
+
+  local requirements = dojo.options.requirements
+  dojo.options.requirements = function(task)
+    return task ~= second, task == second and { "capability:probe" } or {}
+  end
+  local blocked = dojo.next_path_entry(path)
+  assert(
+    blocked.task == second and not blocked.available and blocked.missing[1] == "capability:probe",
+    "an unavailable entry blocks resume; it is never skipped"
+  )
+  local started, reason = dojo.start_next_path_entry(path)
+  assert(not started and reason == "unavailable" and vim.api.nvim_buf_get_name(0) == "")
+  dojo.options.requirements = requirements
+  assert(dojo.toggle_completion(first))
+
+  -- Inside a path task, next waits for completion and then moves forward only.
+  assert(select(2, dojo.start_next_path_entry()) == "no_active_path")
+  local fifth, sixth = dojo.find_lesson(path.entries[5]), path.entries[6]
+  assert(dojo.start(fifth.id, path.id))
+  assert(vim.fn.maparg(",n", "n") ~= "", "a path task maps the next key")
+  started, reason = dojo.start_next_path_entry()
+  assert(not started and reason == "current_incomplete", "next does not abandon an incomplete task")
+  assert(dojo.toggle_completion(fifth))
+  started, entry = dojo.start_next_path_entry()
+  assert(
+    started and entry.task.id == sixth and vim.api.nvim_buf_get_name(0) == "neovim-dojo://" .. sixth,
+    "next opens the following incomplete entry, not an earlier one"
+  )
+  dojo.quit()
+  assert(dojo.start(fifth.id, "no-such-path") and vim.fn.maparg(",n", "n") == "", "an unknown path is ignored")
+  dojo.quit()
+  dojo.clear_progress(true)
+end
+
 ui.set_filter("path", "neovim-fundamentals")
 dojo.start("create-vertical-split", "neovim-fundamentals")
 dojo.toggle_current_completion()

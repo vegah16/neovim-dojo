@@ -15,6 +15,8 @@ if command -v timeout >/dev/null 2>&1; then
 fi
 
 cd "$root"
+full=0
+[ "$#" -gt 0 ] || full=1
 [ "$#" -gt 0 ] || set -- tests/registry.lua tests/session.lua tests/lifecycle.lua tests/registers.lua \
   tests/macros.lua tests/native.lua tests/projects.lua tests/events.lua tests/picker.lua tests/picker_snacks.lua
 for test_file in "$@"; do
@@ -23,8 +25,10 @@ for test_file in "$@"; do
     $guard "${NVIM_BIN:-nvim}" --headless --clean -u tests/init.lua "+luafile tests/entry.lua" +qa!
   printf '\n'
 done
-# A real terminal, for what a headless editor cannot show.
-if command -v python3 >/dev/null 2>&1; then
+# A real terminal, for what a headless editor cannot show. Only in a full run.
+if [ "$full" -eq 0 ]; then
+  :
+elif command -v python3 >/dev/null 2>&1; then
   env XDG_CONFIG_HOME="$home/config" XDG_DATA_HOME="$home/data" XDG_STATE_HOME="$home/state" \
     XDG_CACHE_HOME="$home/cache" NVIM_BIN="${NVIM_BIN:-nvim}" $guard python3 tests/idle.py
 else
