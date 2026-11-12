@@ -62,7 +62,7 @@ return {
     a.lesson(
       "insert-indent-keys",
       "Indent from Insert mode",
-      "Give both inner lines two spaces of indent without leaving Insert mode for the indent.",
+      "Give both inner lines an indent of two spaces with the Insert-mode indent keys.",
       {
         "In Insert mode `<C-t>` adds one 'shiftwidth' of indent to the line and `<C-d>` removes one, wherever the cursor is.",
         "On `run()` press `I`, then `<C-t>`, then `<Esc>`.",

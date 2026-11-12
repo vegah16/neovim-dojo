@@ -24,7 +24,7 @@ return {
       { "alpha", "beta", "gamma" },
       {
         extra = function(context)
-          local wins = vim.api.nvim_tabpage_list_wins(context.tab)
+          local wins = w.windows(context)
           if #wins ~= 2 then
             return false
           end

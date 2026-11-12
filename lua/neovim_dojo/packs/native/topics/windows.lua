@@ -67,7 +67,7 @@ return {
       { "Keep this view and close the other." },
       {
         extra = function(context)
-          return #vim.api.nvim_tabpage_list_wins(context.tab) == 1
+          return #w.windows(context) == 1
         end,
       },
       { setup = { kind = "unequal_vertical_splits" }, keywords = { "C-w o", ":only", "C-w c", "C-w q" } }
@@ -84,7 +84,7 @@ return {
       { "One of these two views can have a tab page of its own." },
       {
         extra = function(context)
-          if #vim.api.nvim_tabpage_list_wins(context.tab) ~= 1 then
+          if #w.windows(context) ~= 1 then
             return false
           end
           for _, tab in ipairs(vim.api.nvim_list_tabpages()) do

@@ -25,6 +25,25 @@ do
   end
 end
 dojo.clear_progress(true)
+-- A floating window, such as a notification, is not part of a layout.
+do
+  assert(dojo.start("close-other-windows"))
+  local workspace = require("neovim_dojo.workspace")
+  local context = { tab = vim.api.nvim_get_current_tabpage() }
+  local float = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+    relative = "editor",
+    row = 1,
+    col = 1,
+    width = 10,
+    height = 1,
+  })
+  assert(#vim.api.nvim_tabpage_list_wins(context.tab) == 3 and #workspace.windows(context) == 2)
+  keys("<C-w>o")
+  assert(#workspace.windows(context) == 1, "the layout has one window left")
+  pcall(vim.api.nvim_win_close, float, true)
+  dojo.quit()
+  dojo.clear_progress(true)
+end
 -- Setting a mark leaves the cursor in place; only the round trip may pass.
 assert(dojo.start("line-and-exact-marks"))
 keys("ma")

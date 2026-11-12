@@ -54,22 +54,14 @@ return {
       { folds = { closed = { 2, 10 }, open = { 6 } } },
       { options = by_indent, keywords = { "zM", "zR", "zo", "zj", "zk", "outline" } }
     ),
-    a.lesson(
-      "create-manual-fold",
-      "Create a fold by hand",
-      "Fold the three `noise` lines into one closed fold.",
-      {
-        "With manual folding, `zf` followed by a motion creates a fold, closed at once.",
-        "On `noise 1` type `zf2j`: this line and the two below it.",
-        "`zd` deletes the fold under the cursor, not its text. `zfap` folds a paragraph.",
-      },
-      { "keep", "noise 1", "noise 2", "noise 3", "keep" },
-      { folds = { closed = { 2, 3, 4 }, open = { 1, 5 } } },
-      {
-        options = { foldmethod = "manual", foldenable = true },
-        keywords = { "zf", "zd", "zf2j", "zfap", "manual fold" },
-      }
-    ),
+    a.lesson("create-manual-fold", "Create a fold by hand", "Fold the three `noise` lines into one closed fold.", {
+      "With manual folding, `zf` followed by a motion creates a fold, closed at once.",
+      "On `noise 1` type `zf2j`: this line and the two below it.",
+      "`zd` deletes the fold under the cursor, not its text. `zfap` folds a paragraph.",
+    }, { "keep", "noise 1", "noise 2", "noise 3", "keep" }, { folds = { closed = { 2, 3, 4 }, open = { 1, 5 } } }, {
+      options = { foldmethod = "manual", foldenable = true },
+      keywords = { "zf", "zd", "zf2j", "zfap", "manual fold" },
+    }),
     a.lesson(
       "edit-closed-fold",
       "Edit a closed fold as one line",

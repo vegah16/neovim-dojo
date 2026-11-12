@@ -80,6 +80,13 @@ function M.buffers(context)
   end, vim.api.nvim_list_bufs())
 end
 local fixture_buffers = M.buffers
+-- The ordinary windows of the task's tab page. A floating window (a
+-- notification, a completion menu, a hover) is not part of a layout.
+function M.windows(context)
+  return vim.tbl_filter(function(win)
+    return vim.api.nvim_win_get_config(win).relative == ""
+  end, vim.api.nvim_tabpage_list_wins(context.tab))
+end
 function M.cleanup(context)
   if not context.workspace then
     return
@@ -274,7 +281,7 @@ function M.check(context, check)
     end
   end
   if check.layout then
-    local wins = vim.api.nvim_tabpage_list_wins(context.tab)
+    local wins = M.windows(context)
     if #wins ~= check.layout.count then
       return false
     end

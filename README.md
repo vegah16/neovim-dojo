@@ -377,6 +377,8 @@ A `workspace` check can require file contents (`files`, with `disk = true` to
 read the saved file), missing paths (`absent`), directories (`dirs`), the
 current file and cursor (`position`), visited files (`visited`), a window
 `layout`, the tab directory (`tcd`), and a function of your own (`extra`).
+`layout` counts ordinary windows only; in a function of your own, use
+`w.windows(context)` for the same list without floating windows.
 `w.drill(...)` makes a scenario drill over the same kind of fixture.
 `setup.prepare(context, scene)` and `setup.after_read(context, scene)` run your
 own code while a scene is built. Put clean-up in `context.workspace.cleanup`.
