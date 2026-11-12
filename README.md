@@ -12,8 +12,11 @@ The plugin has two parts:
 - an **engine**: the task runner, the checks, the drill runners, progress and
   review state, and a picker;
 - **curriculum packs**: plain Lua tables of tasks. One pack is built in. It
-  teaches native Vim and Neovim only (59 tasks) and works in a stock editor.
-  You add your own pack to teach your plugins and your key mappings.
+  teaches native Vim and Neovim only and works in a stock editor: motions,
+  Insert mode, operators, text objects, Visual mode, registers, search, Ex
+  commands, macros, folds, windows, buffers, quickfix and diff mode. Three
+  learning paths order it from beginner to advanced. You add your own pack to
+  teach your plugins and your key mappings.
 
 ## Requirements
 
@@ -205,7 +208,7 @@ Built-in checks:
 
 | `check.kind` | Passes when |
 | --- | --- |
-| `outcome` | The declared `lines`, `cursor`, `mark`, `search` (last search pattern) and `repeat_contains` (text of the last change) all match |
+| `outcome` | Every declared field matches; see below |
 | `buffer_equals` | The buffer equals `lines` |
 | `buffer_equals_at_cursor` | The buffer equals `lines` and the cursor is at `cursor` |
 | `cursor_on_text` | The cursor is on `text` in `line` |
@@ -216,6 +219,26 @@ Built-in checks:
 | `cmdwin_types`, `cmdwin_text` | The command-line window was opened for these `types`, or with this `text` |
 | `workspace` | A file-backed outcome; see below |
 | `manual` | Never; the learner presses `,m` |
+
+The fields of an `outcome` check. Declare only what the lesson is about:
+
+| Field | Passes when |
+| --- | --- |
+| `lines` | The buffer holds exactly these lines |
+| `cursor` | The cursor is at `{ line, column }` in the task buffer |
+| `mark` | Mark `name` is at `position` |
+| `register` | Register `name` equals `value`, or contains `contains` |
+| `search` | The last search pattern is exactly this string |
+| `search_accepts`, `search_rejects` | The last search pattern matches every string of the first list and none of the second. Prefer these to `search` when several spellings are right |
+| `repeat_contains` | The text of the last insert contains this string |
+| `folds` | The lines in `closed` are inside a closed fold and the lines in `open` are not |
+| `winline` | `"top"`: the cursor line is as high in the window as 'scrolloff' allows |
+| `extra` | Your function `extra(context)` returns true. It runs on every check, so it may remember what it saw in `context` |
+
+`search`, `search_accepts`, `search_rejects` and `repeat_contains` only add to
+another field: a search pattern survives from one task to the next.
+
+A task's `options` are applied when it starts and again on every reset.
 
 Built-in setups: `clear_undo_history`, `buffer_navigation` (extra listed
 buffers), `unequal_vertical_splits`, `native_window_navigation`,
@@ -245,7 +268,7 @@ A drill names a runner and its workload:
 | `remote_actions` | Deleting, yanking or changing distant text and returning |
 | `syntax_nodes` | Removing a highlighted syntax node |
 | `undo_branches` | Recovering text from an abandoned undo branch |
-| `scenarios` | Untimed outcomes: each scene has a `goal`, `lines` and a `check`, and the learner checks with `,k` |
+| `scenarios` | Untimed outcomes: each scene has a `goal`, `lines` and a `check`, optionally a `cursor` and `options`, and the learner checks with `,k` |
 
 Timed runners use a fixed workload per run, so that a personal best means
 something: the order is random, the total distance or number of edits is not.
@@ -275,6 +298,10 @@ paths = {
 Choosing a path in the picker shows its tasks in order with `done/total`.
 `,n` starts the first incomplete entry. A path does not store progress of its
 own.
+
+The built-in pack has four paths. `neovim-fundamentals` is a short first tour.
+`native-first-steps`, `native-fluent-editing` and `native-power-tools` are
+three levels that together hold every built-in task exactly once.
 
 ### Extend a built-in topic, or change a built-in task
 
@@ -385,6 +412,23 @@ test runner's discovery, away from fixtures.
 tests/run.sh                                   # all tests, with `nvim`
 NVIM_BIN=/path/to/nvim tests/run.sh tests/registry.lua
 DOJO_TEST_SNACKS=/path/to/snacks.nvim tests/run.sh   # also open the real picker
+```
+
+`tests/solutions.lua` holds one solution, as typed keys, for every built-in
+task that is checked automatically. `tests/native.lua` types each one into the
+running task: the untouched fixture must fail, every step before the last
+must fail, a similar but wrong result must fail, and the solution must pass.
+A new built-in task needs three things: the task in its topic file, a line in
+one of the three level paths, and its solution. The tests fail while one is
+missing.
+
+A configuration can replay the same file under its own mappings and plugins,
+to find built-in lessons that its setup changes:
+
+```lua
+local dir = "/path/to/neovim-dojo"
+local replay = dofile(dir .. "/tests/replay.lua")
+replay.all(dofile(dir .. "/tests/solutions.lua"))
 ```
 
 The tests start Neovim with `--clean` and a private state directory. They need
