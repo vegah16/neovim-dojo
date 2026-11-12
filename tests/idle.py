@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """An open task must leave the editor idle.
 
-Headless tests cannot see this: SafeState is only raised by the main loop of an
-editor with a terminal. This starts one in a pseudo-terminal, opens a task and
-counts the idle ticks over two seconds. tests/run.sh sets the environment.
+The Lua tests cannot see this: each runs inside one command and never returns
+to the editor's main loop, which is what raises SafeState. This starts an
+editor in a pseudo-terminal, opens a task and counts the idle ticks over two
+seconds. tests/run.sh sets the environment.
 """
 import json
 import os

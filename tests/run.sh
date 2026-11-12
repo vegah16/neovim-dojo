@@ -25,7 +25,8 @@ for test_file in "$@"; do
     $guard "${NVIM_BIN:-nvim}" --headless --clean -u tests/init.lua "+luafile tests/entry.lua" +qa!
   printf '\n'
 done
-# A real terminal, for what a headless editor cannot show. Only in a full run.
+# An editor in a terminal, for what one Lua test file cannot show: that an
+# open task leaves the main loop idle. Only in a full run.
 if [ "$full" -eq 0 ]; then
   :
 elif command -v python3 >/dev/null 2>&1; then

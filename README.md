@@ -391,8 +391,8 @@ The tests start Neovim with `--clean` and a private state directory. They need
 no other plugin: `tests/picker.lua` tests the picker against a recorder in
 place of Snacks. `tests/picker_snacks.lua` opens the real Snacks picker and
 types into it; it is skipped unless `DOJO_TEST_SNACKS` names a snacks.nvim
-checkout. With `python3`, `tests/idle.py` also opens a task in a real terminal
-and checks that the editor stays idle.
+checkout. With `python3`, `tests/idle.py` also opens a task in a terminal and
+checks that the editor stays idle.
 
 ### What an open task costs
 
