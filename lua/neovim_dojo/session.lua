@@ -1321,6 +1321,15 @@ function M.reset()
     else
       set_lesson_lines(context)
     end
+    -- Again on every reset: a learner may have changed them (`zM` lowers
+    -- 'foldlevel'), and new text recomputes what depends on them.
+    for name, value in pairs(context.lesson.options or {}) do
+      vim.api.nvim_set_option_value(name, value, { scope = "local" })
+    end
+    -- Folds made by hand outlive the text they were made on.
+    if vim.wo.foldmethod == "manual" then
+      vim.cmd("silent! normal! zE")
+    end
     apply_lesson_setup(context)
   end
   -- Add the virtual instruction panel only after the task cursor and any

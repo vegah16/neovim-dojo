@@ -115,6 +115,94 @@ local lessons = {
       },
     }
   ),
+  a.lesson(
+    "backward-word-motions",
+    "Move backward by word",
+    "From `delta`, reach the last letter of `beta`.",
+    {
+      "`b` moves back to the start of a word and `ge` back to the end of the previous word. `B` and `gE` do the same for WORDs.",
+      "The cursor is on the `d` of `delta`. `ge` reaches the end of `gamma`; type `2ge` to reach the `a` that ends `beta`.",
+      "`2b` would land on the first letter of `beta` instead.",
+    },
+    { "alpha beta gamma delta" },
+    { cursor = { 1, 9 } },
+    { cursor = { 1, 17 }, keywords = { "b", "B", "ge", "gE", "2ge", "backward" } }
+  ),
+  a.lesson(
+    "jump-back-previous-position",
+    "Jump back to where you were",
+    "Jump to the last line, then return to the exact position on `ORIGIN`.",
+    {
+      "Press `G` to jump to the last line. A jump remembers where it started.",
+      "Press backtick twice to return to that exact position. `''` (two single quotes) returns to the line only, at its first non-blank character.",
+      "Pressing it again jumps back and forth between the two places. `<C-o>` walks further back through older jumps.",
+    },
+    { "top", "", "    keep ORIGIN here", "middle", "middle", "middle", "far destination" },
+    {
+      kind = "cursor_round_trip",
+      target = { line = 7, text = "far destination" },
+      origin = { 3, 9 },
+    },
+    { cursor = { 3, 9 }, keywords = { "``", "''", "G", "C-o", "jump" } }
+  ),
+  a.lesson(
+    "revisit-older-change",
+    "Return to an earlier change",
+    "Change `old` to `new` on the first and on the last line, then return to the first change with the change list.",
+    {
+      "On the first line change `old` to `new`, for example with `$ciwnew` and `<Esc>`. Do the same on the last line.",
+      "Press `g;`. It goes to the position of the latest change, where you already are. Press `g;` again for the change before it.",
+      "`g,` goes forward again and `:changes` lists the positions. Finish on the first line, where `g;` puts you.",
+    },
+    { "first old", "filler a", "filler b", "filler c", "last old" },
+    {
+      lines = { "first new", "filler a", "filler b", "filler c", "last new" },
+      -- The line, not the column: where in a change the list points varies.
+      extra = function(context)
+        return vim.api.nvim_get_current_buf() == context.buf and vim.api.nvim_win_get_cursor(0)[1] == 1
+      end,
+    },
+    { keywords = { "g;", "g,", ":changes", "change list" } }
+  ),
+  a.lesson(
+    "marks-as-ranges",
+    "Operate up to a mark",
+    "Delete the three `cut` lines by marking the first and deleting from the last.",
+    {
+      "On `cut one` set a mark with `ma`.",
+      "Move to `cut three` and type `d'a`: delete from this line through the line of mark `a`.",
+      "With a backtick instead of the quote, the motion is exact to the character instead of whole lines. `y'a` and `>'a` work the same way.",
+    },
+    { "keep top", "cut one", "cut two", "cut three", "keep bottom" },
+    { lines = { "keep top", "keep bottom" } },
+    { keywords = { "ma", "d'a", "y'a", ">'a", "mark", "range" } }
+  ),
+  a.drill(
+    "mark-range-drill",
+    "Edit from the cursor to a mark",
+    "Set a mark at one end, move to the other, and apply an operator to the lines between.",
+    {
+      "Use `ma` and then an operator with `'a`. The checker requires the mark where the round says, when the marked line still exists.",
+    },
+    {
+      {
+        goal = "Mark line 2; delete lines 2 to 4 from line 4",
+        lines = { "a", "b", "c", "d", "e" },
+        check = { lines = { "a", "e" } },
+      },
+      {
+        goal = "Mark line 1; uppercase lines 1 to 3 from line 3",
+        lines = { "one", "two", "three", "four" },
+        check = { lines = { "ONE", "TWO", "THREE", "four" }, mark = { name = "a", position = { 1, 0 } } },
+      },
+      {
+        goal = "Mark line 2; indent lines 2 and 3 once (two spaces)",
+        lines = { "a", "b", "c", "d" },
+        options = { shiftwidth = 2, expandtab = true },
+        check = { lines = { "a", "  b", "  c", "d" }, mark = { name = "a", position = { 2, 0 } } },
+      },
+    }
+  ),
 }
 return {
   id = "precision-movement",

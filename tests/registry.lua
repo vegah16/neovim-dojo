@@ -35,21 +35,61 @@ for _, task in ipairs(session.lessons()) do
     end
   end
 end
+-- The pack only grows; a task is never removed or renamed, because progress
+-- is stored under its ID.
 assert(
-  counts.lesson == 39 and counts.drill == 20,
-  ("native pack size changed: %d lessons, %d drills"):format(counts.lesson, counts.drill)
+  counts.lesson >= 39 and counts.drill >= 20,
+  ("the native pack lost tasks: %d lessons, %d drills"):format(counts.lesson, counts.drill)
 )
-assert(#session.topics() == 14 and #session.paths() == 1, "fourteen topics and the Fundamentals path")
+for _, id in ipairs({
+  "navigation",
+  "precision-movement",
+  "operators",
+  "visual-editing",
+  "native-search",
+  "ranges-and-ex",
+  "editing",
+  "undo-history",
+  "buffers",
+  "registers",
+  "macros",
+  "windows",
+  "command-line-editing",
+  "project-views",
+}) do
+  assert(session.find_topic(id), "an original topic is missing: " .. id)
+end
 local fundamentals = session.find_path("neovim-fundamentals")
 assert(#fundamentals.entries == 10 and fundamentals.revision == 1, "Fundamentals membership is stable")
-for _, id in ipairs(fundamentals.entries) do
-  assert(ids[id], "path entry must resolve: " .. id)
+-- The three level paths hold every task exactly once, so each task has one
+-- place in the beginner-to-advanced order.
+local level = {}
+for _, path in ipairs(session.paths()) do
+  for _, id in ipairs(path.entries) do
+    assert(ids[id], path.id .. ": path entry must resolve: " .. id)
+    if path.id:match("^native%-") then
+      assert(not level[id], ("%s is in two level paths: %s and %s"):format(id, tostring(level[id]), path.id))
+      level[id] = path.id
+    end
+  end
 end
+for id in pairs(ids) do
+  assert(level[id], "a native task is in no level path: " .. id)
+end
+assert(#session.paths() == 4, "Fundamentals and three level paths")
 for _, file in ipairs(vim.fn.glob("lua/neovim_dojo/**/*.lua", false, true)) do
   assert(loadfile(file))
 end
 assert(vim.tbl_contains(session.find_lesson("counted-word-ends").keywords, "3e"), "quoted teaching keys are searchable")
-print(("DOJO NATIVE PACK OK: %d lessons, %d drills, 14 topics, 1 path"):format(counts.lesson, counts.drill))
+local native_tasks, native_windows = #session.lessons(), #session.find_topic("windows").lessons
+print(
+  ("DOJO NATIVE PACK OK: %d lessons, %d drills, %d topics, %d paths"):format(
+    counts.lesson,
+    counts.drill,
+    #session.topics(),
+    #session.paths()
+  )
+)
 
 -- A second curriculum extends a topic, overrides a task and adds a path.
 local function pack()
@@ -96,7 +136,10 @@ local native_split = vim.deepcopy(session.find_lesson("create-vertical-split").s
 dojo.setup({ curricula = { "native", pack() }, prefix = "<localleader>" })
 local windows = session.find_topic("windows")
 assert(windows.title == "Windows" and windows.curriculum == "native", "an extended topic keeps its first definition")
-assert(#windows.lessons == 4 and windows.lessons[4].id == "probe-extension-task", "new tasks join the existing topic")
+assert(
+  #windows.lessons == native_windows + 1 and windows.lessons[#windows.lessons].id == "probe-extension-task",
+  "new tasks join the existing topic"
+)
 local probe = session.find_lesson("probe-extension-task")
 assert(probe.curriculum == "probe-pack" and probe.source.name == "probe.nvim", "an extension uses its own defaults")
 assert(vim.tbl_contains(probe.topics, "windows") and vim.tbl_contains(probe.topics, "extra-topic"), "topics are merged")
@@ -111,7 +154,10 @@ assert(split.steps[1]:find("<leader>|", 1, true) and #split.steps == 1, "an over
 assert(split.bindings.origin == "mixed" and split.curriculum == "native", "and keeps the task's identity")
 assert(split.check.kind == "window_count" and windows.lessons[1] == split, "its other fields and position are kept")
 assert(vim.tbl_contains(split.keywords, "<leader>|"), "overridden text is indexed again")
-assert(#session.lessons() == 60 and #session.find_path("probe-path").entries == 2, "one task and one path were added")
+assert(
+  #session.lessons() == native_tasks + 1 and #session.find_path("probe-path").entries == 2,
+  "one task and one path were added"
+)
 dojo.setup()
 assert(
   vim.deep_equal(session.find_lesson("create-vertical-split").steps, native_split),

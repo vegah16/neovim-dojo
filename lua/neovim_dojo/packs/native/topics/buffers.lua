@@ -1,3 +1,5 @@
+local a = require("neovim_dojo.author")
+local w = require("neovim_dojo.workspace")
 return {
   id = "buffers",
   title = "Buffers",
@@ -78,5 +80,83 @@ return {
       },
       check = { kind = "target_buffer" },
     },
+    a.lesson("cycle-listed-buffers", "Step through the buffer list", "Show the next listed buffer in this window.", {
+      "Run `:bnext`. The window shows the next buffer of the list, the hidden `buffer-next.txt`.",
+      "`:bprevious` goes back, and `:bfirst` and `:blast` go to the ends. Neovim 0.11 and later also map `]b` and `[b`.",
+      "Stepping suits a short list. For a long one, `:buffer` with part of a name is faster.",
+    }, { "CURRENT · step to the next buffer in the list" }, { kind = "target_buffer" }, {
+      setup = {
+        kind = "buffer_navigation",
+        buffers = { { name = "buffer-next", target = true, lines = { "NEXT · reached with :bnext" } } },
+      },
+      keywords = { ":bnext", ":bprevious", ":bfirst", ":blast", "]b", "[b" },
+    }),
+    a.lesson(
+      "delete-hidden-buffer",
+      "Remove a buffer from the list",
+      "Delete the hidden buffer `buffer-scrap.txt` without changing this window.",
+      {
+        "Run `:ls` and find the hidden `buffer-scrap.txt`.",
+        "Run `:bdelete` with its number, or `:bdelete buffer-scrap`. The buffer leaves the list; the file on disk is untouched.",
+        "`:bdelete` without an argument deletes the current buffer and closes its windows. `:bwipeout` also forgets marks and options.",
+      },
+      { "CURRENT · this window stays as it is" },
+      {
+        extra = function(context)
+          local scrap = context.target_buffer
+          return scrap ~= nil and not (vim.api.nvim_buf_is_valid(scrap) and vim.bo[scrap].buflisted)
+        end,
+        cursor = { 1, 0 },
+      },
+      {
+        setup = {
+          kind = "buffer_navigation",
+          buffers = { { name = "buffer-scrap", target = true, lines = { "SCRAP · no longer needed" } } },
+        },
+        keywords = { ":bdelete", ":bd", ":bwipeout", ":ls" },
+      }
+    ),
+    w.lesson(
+      "save-all-buffers",
+      "Save every changed buffer",
+      "Append ` saved` to the first line of `main.txt` and of `alpha.txt`, then write both with one command.",
+      {
+        "Append ` saved` here. Open the other file with `:edit alpha.txt` and append the same there; the changed `main.txt` stays loaded and hidden.",
+        "Run `:wall` (`:wa`). It writes every changed buffer.",
+        "`:update` writes the current buffer only if it changed, and `:xall` writes everything and quits.",
+      },
+      { "notes" },
+      {
+        disk = true,
+        files = { ["main.txt"] = { "notes saved" }, ["alpha.txt"] = { "alpha reference saved" } },
+      },
+      { files = { ["alpha.txt"] = { "alpha reference" } } },
+      { keywords = { ":wall", ":wa", ":update", ":xall", "save" } }
+    ),
+    w.lesson(
+      "discard-unsaved-changes",
+      "Throw away unsaved changes",
+      "Damage this file on purpose, then get the saved version back.",
+      {
+        "Delete a line, for example with `dd`. The buffer is now modified.",
+        "Run `:edit!`. It reads the file from disk again and discards every unsaved change.",
+        "This also reloads a file that another program changed. Undo with `u` reaches the same text here, but not after a restart without undo history.",
+      },
+      { "keep this line", "and this one" },
+      {
+        -- The text alone is the starting state: the buffer must have been
+        -- modified in between. `extra` sees every check, so it can remember.
+        extra = function(context)
+          local workspace = context.workspace
+          local modified = vim.bo[context.buf].modified
+          workspace.was_modified = workspace.was_modified or modified
+          return workspace.was_modified
+            and not modified
+            and vim.deep_equal(w.lines(context, "main.txt"), { "keep this line", "and this one" })
+        end,
+      },
+      {},
+      { keywords = { ":edit!", ":e!", "discard", "reload" } }
+    ),
   },
 }

@@ -1,3 +1,4 @@
+local a = require("neovim_dojo.author")
 local preserved = { "a", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "-" }
 
 return {
@@ -93,5 +94,31 @@ return {
         },
       },
     },
+    a.lesson(
+      "macro-on-range",
+      "Run a macro on a range of lines",
+      "Turn the first four lines into uppercase bullets: record the edit once and run it on the other three lines with one command.",
+      {
+        "On the first line record `qa`, `gUiwI- `, `<Esc>`, `q`. The macro edits one line and does not move to the next.",
+        "Run `:2,4normal @a`. `:normal` plays the macro on every line of the range.",
+        "A line where the macro fails does not stop the others, unlike a counted `3@a`. After selecting lines, `:'<,'>normal @a` does the same.",
+      },
+      { "amber", "maple", "coral", "daisy", "# keep" },
+      { lines = { "- AMBER", "- MAPLE", "- CORAL", "- DAISY", "# keep" } },
+      { keywords = { ":normal @a", "qa", "@a", "range", "macro" } }
+    ),
+    a.lesson(
+      "append-to-macro",
+      "Add keys to a recorded macro",
+      "Record a macro that appends `!`, add the missing `j` to it, and replay it on the other two rows.",
+      {
+        "Record `qa`, `A!`, `<Esc>`, `q`. The macro forgets to move to the next row.",
+        "Type `qA`, `j`, `q`. An upper-case register name appends to the recording instead of replacing it.",
+        "Now `2@a` finishes the other two rows and lands on `STOP`. `:reg a` shows the combined keys.",
+      },
+      { "amber", "maple", "coral", "STOP" },
+      { lines = { "amber!", "maple!", "coral!", "STOP" }, register = { name = "a", contains = "j" } },
+      { keywords = { "qA", "qa", "2@a", "append", "macro" } }
+    ),
   },
 }

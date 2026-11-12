@@ -52,6 +52,10 @@ function Runner:render_round()
     vim.bo[context.buf].modifiable = true
     vim.api.nvim_buf_set_lines(context.buf, 0, -1, false, self.scene.lines)
     vim.bo[context.buf].modified = false
+    -- Options a scene depends on, such as a fold method or an indent width.
+    for name, value in pairs(self.scene.options or {}) do
+      vim.api.nvim_set_option_value(name, value, { scope = "local" })
+    end
     vim.api.nvim_win_set_cursor(0, self.scene.cursor or { 1, 0 })
   end
   self.callbacks.status(self:status(), true)

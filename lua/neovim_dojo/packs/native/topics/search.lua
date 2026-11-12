@@ -106,5 +106,88 @@ return {
         },
       }
     ),
+    a.lesson(
+      "search-offset-end",
+      "Land on the end of a match",
+      "Search for `marker` and land on its last letter in the first line.",
+      {
+        "Type `/marker/e` and press `<CR>`. The offset `e` after the second slash puts the cursor on the end of the match.",
+        "`/marker/e+1` lands one character after it and `/marker/+1` one line below. `n` keeps the offset.",
+      },
+      { "find the marker here", "another marker there" },
+      { cursor = { 1, 14 }, search = "marker" },
+      { keywords = { "/e", "offset", "search" } }
+    ),
+    a.lesson(
+      "very-magic-alternation",
+      "Search for one of several words",
+      "With one search that finds both `error` and `fatal`, land on `fatal`.",
+      {
+        "Type `/\\v(error|fatal)` and press `<CR>`. `\\v` makes `(`, `|` and `)` special without backslashes.",
+        "The first match is `error`. Press `n` for `fatal`.",
+        "Without `\\v` the same pattern is `error\\|fatal`.",
+      },
+      { "logs: info warn error fatal debug" },
+      {
+        cursor = { 1, 22 },
+        search_accepts = { "error", "fatal" },
+        search_rejects = { "info", "warn", "debug" },
+      },
+      { keywords = { "\\v", "\\|", "alternation", "very magic" } }
+    ),
+    a.lesson(
+      "delete-to-search-match",
+      "Use a search as a motion",
+      "Delete everything before `STOP` on the first line.",
+      {
+        "A search is a motion, so it works after an operator. Type `d/STOP` and press `<CR>`.",
+        "The delete stops just before the match. `c/` and `y/` work the same way, and `?` searches backward.",
+      },
+      { "drop these words STOP keep the rest", "protected" },
+      { lines = { "STOP keep the rest", "protected" } },
+      { keywords = { "d/", "c/", "y/", "search motion" } }
+    ),
+    a.lesson(
+      "visual-star-search",
+      "Search for the selected text",
+      "Select `a.b` and search for exactly that text, landing on the third line.",
+      {
+        "Select the WORD under the cursor with `viW`.",
+        "Press `*`. In Visual mode Neovim searches for the selected text literally, so the `.` does not match the `x` of `axb`.",
+        "`#` does the same backward.",
+      },
+      { "use a.b here", "axb is not it", "again a.b there" },
+      { cursor = { 3, 6 }, search_accepts = { "a.b" }, search_rejects = { "axb" } },
+      { source = { kind = "neovim" }, cursor = { 1, 4 }, keywords = { "v_*", "*", "visual", "literal" } }
+    ),
+    a.drill(
+      "search-pattern-drill",
+      "Search with offsets and alternatives",
+      "Reach or edit text with one deliberate search.",
+      {
+        "Use an `e` offset, a `\\v(a|b)` alternation, or a search after an operator.",
+      },
+      {
+        {
+          goal = "Land on the last letter of the first token",
+          lines = { "a token, a token" },
+          check = { cursor = { 1, 6 }, search = "token" },
+        },
+        {
+          goal = "One search that finds cat and dog; land on dog",
+          lines = { "bird cat fish dog" },
+          check = {
+            cursor = { 1, 14 },
+            search_accepts = { "cat", "dog" },
+            search_rejects = { "bird", "fish" },
+          },
+        },
+        {
+          goal = "Delete from the cursor up to END",
+          lines = { "junk junk END tail", "protected" },
+          check = { lines = { "END tail", "protected" } },
+        },
+      }
+    ),
   },
 }

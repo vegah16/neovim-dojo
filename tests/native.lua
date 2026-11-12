@@ -1,66 +1,30 @@
--- Every native outcome task: untouched fixtures fail, a real solution passes,
--- and scenario drills reject damaged text.
+-- Every native outcome task, replayed with the keys of tests/solutions.lua:
+-- untouched fixtures fail, intermediate steps and wrong results fail, a real
+-- solution passes, and scenario drills reject damaged text.
 require("neovim_dojo").setup()
 local dojo = require("neovim_dojo.session")
 dojo.clear_progress(true)
-local outcomes = require("neovim_dojo.outcomes")
-local function keys(text)
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(text, true, false, true), "xt", false)
-  vim.cmd("doautocmd <nomodeline> TextChanged")
-end
-local function ex(text)
-  vim.cmd(text)
-end
-local solutions = {
-  ["word-versus-big-word"] = "3w",
-  ["counted-word-ends"] = "3e",
-  ["line-and-exact-marks"] = function()
-    keys("maG")
-    dojo.check() -- typeahead suppresses CursorMoved; observe the visit explicitly
-    keys("`a")
-  end,
-  ["compose-operator-motion"] = "d2w",
-  ["operator-count-placement"] = "2d3w",
-  ["dot-repeat-separated-edits"] = "ciwready<Esc>jj.",
-  ["join-and-reindent"] = "Jgg=G",
-  ["visual-selection-kinds"] = "Vd",
-  ["visual-ends-and-reselect"] = "viwooeU",
-  ["block-insert-column"] = "<C-v>jjI# <Esc>",
-  ["block-delete-rectangle"] = "<C-v>jjld",
-  ["literal-search-case"] = "/\\V\\CA.b<CR>",
-  ["whole-word-star-hash"] = "*",
-  ["search-direction-next"] = "?signal<CR>",
-  ["change-next-match"] = "/\\<old\\><CR>cgnready<Esc>.",
-  ["substitute-ranges"] = function()
-    ex("2,3s/old/new/g")
-  end,
-  ["substitute-confirmation"] = ":%s/red/blue/gc<CR>yny",
-  ["substitute-captures"] = function()
-    ex([[1,2s/\v(\w+)[=](\d+)/\2: \1/]])
-  end,
-  ["bounded-global-normal"] = function()
-    ex("1,4g/^TODO/normal! gUU")
-  end,
-}
-for id, solution in pairs(solutions) do
-  assert(dojo.start(id))
-  assert(not dojo.check(), id .. ": untouched fixture must not pass")
-  if type(solution) == "function" then
-    solution()
-  else
-    keys(solution)
+local replay = dofile("tests/replay.lua")
+local keys = replay.keys
+local solutions = dofile("tests/solutions.lua")
+local lesson_count, drill_count = replay.all(solutions)
+-- Every task is replayed above, completed by hand, or covered by another file.
+do
+  local covered = {}
+  for _, id in ipairs(vim.list_extend(vim.list_extend({}, solutions.manual), solutions.elsewhere)) do
+    assert(dojo.find_lesson(id), "solutions.lua names an unknown task: " .. id)
+    covered[id] = true
   end
-  dojo.check()
-  assert(
-    dojo.lesson_state(dojo.find_lesson(id)).completed,
-    id
-      .. ": native solution failed: "
-      .. vim.inspect(vim.api.nvim_buf_get_lines(0, 0, -1, false))
-      .. " cursor "
-      .. vim.inspect(vim.api.nvim_win_get_cursor(0))
-  )
-  dojo.quit()
+  for _, task in ipairs(dojo.lessons()) do
+    local replayed = solutions.lessons[task.id] or solutions.drills[task.id]
+    assert(replayed or covered[task.id], task.id .. ": no solution in tests/solutions.lua")
+    assert(not (replayed and covered[task.id]), task.id .. ": listed twice in tests/solutions.lua")
+    if vim.tbl_contains(solutions.manual, task.id) then
+      assert(task.check.kind == "manual", task.id .. ": listed as manual but has a check")
+    end
+  end
 end
+dojo.clear_progress(true)
 -- Setting a mark leaves the cursor in place; only the round trip may pass.
 assert(dojo.start("line-and-exact-marks"))
 keys("ma")
@@ -76,81 +40,7 @@ dojo.quit()
 assert(dojo.start("jump-list-change-list"))
 assert(not dojo.check(), "history comparison must remain self-assessed")
 dojo.quit()
-local solutions_by_id = {
-  ["word-boundary-drill"] = { "3w", "3e", "2W" },
-  ["mark-edit-return-drill"] = { "maG$ciwnew<Esc>`a", "magg$ciwnew<Esc>`a", "maj0ciwnew<Esc>`a" },
-  ["operator-repair-drill"] = { "d2w", 'ci"ready<Esc>', "D" },
-  ["repeat-correction-drill"] = { "ciwready<Esc>jj.", "ciwdone<Esc>jj.", "ciwgo<Esc>jj." },
-  ["column-patch-drill"] = { "<C-v>jjI# <Esc>", "<C-v>jjld", "<C-v>jjI> <Esc>" },
-  ["selection-boundary-drill"] = { "viweU", "viwU", "VU" },
-  ["search-occurrence-drill"] = { "/\\V\\CA.b<CR>", "*", "?signal<CR>" },
-  ["search-change-decoys-drill"] = {
-    "/\\<old\\><CR>cgnready<Esc>.",
-    "/\\<cat\\><CR>cgnfox<Esc>.",
-    "/\\<run\\><CR>cgnwalk<Esc>.",
-  },
-  ["capture-transform-drill"] = {
-    [[1,2s/\v(\w+)[=](\d+)/\2: \1/]],
-    [[1,2s/\v(\w+)[=](\d+)/\2: \1/]],
-    [[1,2s/\v(\w+)[=](\d+)/\2: \1/]],
-  },
-  ["filter-repair-drill"] = { "1,3g/^TODO/normal! gUU", "1,3g/^BAD/d", "1,3v/^#/normal! A!" },
-}
--- Exercise every scene independently as well as the runner's balanced lifecycle.
 local runner_module = require("neovim_dojo.drills.scenarios")
-for id, commands in pairs(solutions_by_id) do
-  local task = dojo.find_lesson(id)
-  local completed = false
-  local ctx = { buf = vim.api.nvim_create_buf(true, true), lesson = task }
-  vim.api.nvim_set_current_buf(ctx.buf)
-  local runtime = runner_module.new(ctx, task.drill, {
-    random = function(first)
-      return first
-    end,
-    status = function() end,
-    complete = function(result)
-      completed = result.value == #commands and result.details.untimed
-    end,
-  })
-  runtime:reset()
-  runtime:start()
-  for _ = 1, #commands do
-    local scene = runtime.scene
-    local index
-    for i, original in ipairs(task.drill.scenes) do
-      if vim.deep_equal(original, scene) then
-        index = i
-      end
-    end
-    assert(index)
-    assert(not runtime:check(), id .. ": unchanged scene must not advance")
-    local solution = commands[index]
-    if id == "capture-transform-drill" or id == "filter-repair-drill" then
-      ex(solution)
-    else
-      keys(solution)
-    end
-    assert(
-      outcomes.matches(ctx, scene.check),
-      id .. " scene " .. index .. ": solution mismatch: " .. vim.inspect(vim.api.nvim_buf_get_lines(0, 0, -1, false))
-    )
-    if scene.check.lines then
-      local good = vim.api.nvim_buf_get_lines(ctx.buf, 0, -1, false)
-      vim.api.nvim_buf_set_lines(ctx.buf, -1, -1, false, { "unwanted extra edit" })
-      assert(not runtime:check(), id .. ": damaged outside text must fail")
-      vim.api.nvim_buf_set_lines(ctx.buf, #good, -1, false, {})
-      if scene.check.cursor then
-        vim.api.nvim_win_set_cursor(0, scene.check.cursor)
-      end
-    end
-    assert(runtime:check(), id .. ": round should pass")
-  end
-  assert(completed and runtime.phase == "finished", id .. ": all scenes must finish")
-  runtime:reset()
-  assert(runtime.phase == "ready")
-  runtime:close()
-  vim.api.nvim_buf_delete(ctx.buf, { force = true })
-end
 -- A pool larger than the run is sampled, so later scenes are reachable.
 do
   local buf = vim.api.nvim_create_buf(true, true)
@@ -181,7 +71,7 @@ dojo.quit()
 -- A finished untimed drill shows its result in the panel it returns to.
 do
   local id = "repeat-correction-drill"
-  local task, commands = dojo.find_lesson(id), solutions_by_id[id]
+  local task, commands = dojo.find_lesson(id), solutions.drills[id]
   local previous, runtime = dojo.options.drills, nil
   dojo.options.drills = {
     scenarios = {
@@ -226,4 +116,4 @@ do
   dojo.quit()
   dojo.options.drills = previous
 end
-print("DOJO NATIVE OUTCOMES OK: every automatic outcome, negative decoy and reset")
+print(("DOJO NATIVE OUTCOMES OK: %d lessons and %d drills replayed with real keys"):format(lesson_count, drill_count))

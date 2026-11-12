@@ -1,3 +1,4 @@
+local a = require("neovim_dojo.author")
 return {
   id = "undo-history",
   title = "Undo History",
@@ -66,5 +67,24 @@ return {
         },
       },
     },
+    a.lesson(
+      "undo-time-travel",
+      "Go back several changes at once",
+      "Append ` one`, ` two` and ` three` as three separate changes, then go back two changes with one command.",
+      {
+        "Type `A one` and press `<Esc>`. Do the same for ` two` and ` three`: three changes.",
+        "Run `:earlier 2`. The buffer returns to its state two changes ago, `start one`.",
+        "`:later 2` goes forward again. Both also take time and file writes: `:earlier 10m`, `:earlier 1f`.",
+      },
+      { "start" },
+      {
+        lines = { "start one" },
+        extra = function()
+          local tree = vim.fn.undotree()
+          return tree.seq_cur < tree.seq_last
+        end,
+      },
+      { setup = { kind = "clear_undo_history" }, keywords = { ":earlier", ":later", "u", "C-r", "undo" } }
+    ),
   },
 }

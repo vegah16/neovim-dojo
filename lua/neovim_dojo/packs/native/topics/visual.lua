@@ -107,5 +107,83 @@ return {
         },
       }
     ),
+    a.lesson(
+      "block-append-ragged",
+      "Append to lines of different length",
+      "Append `;` to the end of all three lines.",
+      {
+        "Press `<C-v>jj` to start a block over the three lines, then `$` to extend it to the end of every line.",
+        "Press `A`, type `;`, and press `<Esc>`. The text is appended to each line at its own end.",
+        "Without `$` the block has one right edge, and `A` would pad the short line with spaces.",
+      },
+      { "alpha", "be", "gamma!" },
+      { lines = { "alpha;", "be;", "gamma!;" } },
+      { keywords = { "C-v", "$", "A", "block", "append" } }
+    ),
+    a.lesson(
+      "block-change-column",
+      "Change a block",
+      "Change the leading `NO` of all three lines to `OK`.",
+      {
+        "Select the block with `<C-v>jje`: three lines down and to the end of the word.",
+        "Press `c`, type `OK`, and press `<Esc>`. The typed text replaces the block on every line.",
+        "`r{char}` would replace every character of the block with one character.",
+      },
+      { "NO alpha", "NO beta", "NO gamma" },
+      { lines = { "OK alpha", "OK beta", "OK gamma" } },
+      { keywords = { "C-v", "c", "block", "change" } }
+    ),
+    a.lesson(
+      "visual-replace-underline",
+      "Underline a heading",
+      "Add a line of `=` under the heading, exactly as long as the heading.",
+      {
+        "Duplicate the heading with `yyp`.",
+        "Select the copy with `V` and press `r=`: in Visual mode `r` replaces every selected character.",
+        "The underline has the length of the heading, however long that is.",
+      },
+      { "Release notes", "body" },
+      { lines = { "Release notes", "=============", "body" } },
+      { keywords = { "yyp", "Vr=", "r", "underline", "heading" } }
+    ),
+    a.lesson(
+      "visual-indent-repeat",
+      "Indent a selection and repeat",
+      "Indent the two inner lines by two levels.",
+      {
+        "Select the two inner lines with `jVj` and press `>`. The selection ends, and the lines are one level deeper.",
+        "Press `.` to shift the same lines again. A count works too: `2>` in Visual mode shifts twice.",
+        "`gv` selects the same lines again when you need them for another command.",
+      },
+      { "if ready then", "one()", "two()", "end" },
+      { lines = { "if ready then", "    one()", "    two()", "end" } },
+      { options = { shiftwidth = 2, expandtab = true }, keywords = { "V", ">", ".", "gv", "indent" } }
+    ),
+    a.drill(
+      "block-append-change-drill",
+      "Append, change and replace selections",
+      "Edit several lines at once with a block or a linewise selection.",
+      {
+        "Use `<C-v>` with `$A` or `c`, and `V` with `r`.",
+      },
+      {
+        {
+          goal = "Append a comma to all three lines",
+          lines = { "a", "bb", "ccc" },
+          check = { lines = { "a,", "bb,", "ccc," } },
+        },
+        {
+          goal = "Change the leading TODO of each line to DONE",
+          lines = { "TODO a", "TODO b", "TODO c" },
+          check = { lines = { "DONE a", "DONE b", "DONE c" } },
+        },
+        {
+          goal = "Replace every character of line 2 with a dash",
+          lines = { "Title", "xxxxx", "body" },
+          cursor = { 2, 0 },
+          check = { lines = { "Title", "-----", "body" } },
+        },
+      }
+    ),
   },
 }

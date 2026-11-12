@@ -51,6 +51,15 @@ dojo.setup({
 })
 local session = dojo.session
 local state = require("neovim_dojo.state")
+-- The built-in pack grows, so what the picker should show is counted here.
+local native = { tasks = 0, drills = 0, vim = 0 }
+for _, lesson in ipairs(session.lessons()) do
+  if lesson.curriculum == "native" then
+    native.tasks = native.tasks + 1
+    native.drills = native.drills + (lesson.kind == "drill" and 1 or 0)
+    native.vim = native.vim + (lesson.source.kind == "vim" and 1 or 0)
+  end
+end
 session.clear_progress(true)
 
 local original_snacks, original_select, original_input, original_notify =
@@ -169,10 +178,7 @@ for key, action in pairs({
   assert(list_keys[key][1] == action, key .. " also works in the result list")
   assert(type(picker.actions[action]) == "function", action .. " is defined")
 end
-assert(
-  input_keys["<Tab>"][1] == "dojo_select" and list_keys["<Tab>"][1] == "dojo_select",
-  "Tab selects without moving"
-)
+assert(input_keys["<Tab>"][1] == "dojo_select" and list_keys["<Tab>"][1] == "dojo_select", "Tab selects without moving")
 assert(input_keys.j[1] == "list_down" and input_keys.k[1] == "list_up", "j and k move through the results")
 assert(input_keys[",n"] == nil and list_keys[",n"] == nil, "path resume is hidden without an active path")
 for _, key in ipairs({ "i", "a", "v", "f", "<C-u>", "<C-d>" }) do
@@ -182,7 +188,7 @@ end
 -- Rows: two utility rows, then every available task in catalogue order.
 local items = picker.finder()
 assert(items[1].guide and items[2].ideas, "the key guide and the idea backlog come first")
-assert(#items == 2 + 59 + 1, "the default view hides the unavailable task")
+assert(#items == 2 + native.tasks + 1, "the default view hides the unavailable task")
 assert(items[3].lesson.id == session.lessons()[1].id, "tasks keep the catalogue order")
 for _, word in ipairs({ items[3].lesson.id, items[3].lesson.title, "drill", "vim", "native", "navigation" }) do
   assert(items[3].text:find(word, 1, true), "a row is searchable by " .. word)
@@ -251,10 +257,7 @@ for _, pattern in ipairs({
 }) do
   assert(guide.text:find(pattern), "the key guide explains " .. pattern)
 end
-assert(
-  preview(picker, items[2]).text:find("No ideas have been recorded yet", 1, true),
-  "an empty backlog says so"
-)
+assert(preview(picker, items[2]).text:find("No ideas have been recorded yet", 1, true), "an empty backlog says so")
 local probe = row(picker, "probe-available")
 local shown = preview(picker, probe)
 assert(shown.title == "Probe probe-available" and shown.ft == "markdown", "a task preview is titled by the task")
@@ -277,10 +280,7 @@ for _, line in ipairs({
   assert(shown.text:find(line, 1, true), "a task preview shows: " .. line)
 end
 assert(not shown.text:find("Personal best", 1, true), "only a drill preview shows results")
-assert(
-  preview(picker, items[3]).text:find("- Personal best: `", 1, true),
-  "a drill preview shows its personal best"
-)
+assert(preview(picker, items[3]).text:find("- Personal best: `", 1, true), "a drill preview shows its personal best")
 
 -- Facets. Each value narrows the rows; `all` removes only that facet.
 ui.set_filter("availability", "unavailable")
@@ -296,22 +296,19 @@ assert(#tasks(picker) == #session.lessons(), "availability:all shows every task"
 ui.set_filter("source", "probe.nvim")
 assert(#tasks(picker) == 2, "the source facet uses the plugin name")
 ui.set_filter("source", "vim")
-assert(#tasks(picker) == 59, "and the source kind otherwise")
+assert(#tasks(picker) == native.vim, "and the source kind otherwise")
 ui.set_filter("source", "all")
 ui.set_filter("binding", "custom")
 assert(#tasks(picker) == 2, "the binding facet filters by origin")
 ui.set_filter("binding", "all")
 ui.set_filter("kind", "drill")
-assert(#tasks(picker) == 20, "the kind facet separates drills from lessons")
+assert(#tasks(picker) == native.drills, "the kind facet separates drills from lessons")
 ui.set_filter("topic", "navigation")
 for _, item in ipairs(tasks(picker)) do
   assert(item.lesson.kind == "drill" and vim.tbl_contains(item.lesson.topics, "navigation"), "facets combine")
 end
 assert(#tasks(picker) == 3, "the three navigation drills")
-assert(
-  vim.deep_equal(ui.active_filters(), { kind = "drill", topic = "navigation" }),
-  "active facets are readable"
-)
+assert(vim.deep_equal(ui.active_filters(), { kind = "drill", topic = "navigation" }), "active facets are readable")
 assert(vim.deep_equal(state.filters(), { kind = "drill", topic = "navigation" }), "a facet is saved when it changes")
 assert(open().win.list.title == "Tasks · topic:navigation · kind:drill", "facets are listed in a fixed order")
 package.loaded["neovim_dojo.ui.snacks"] = nil
@@ -359,7 +356,11 @@ do
   assert(ui.active_filters().kind == nil, "choosing all removes that facet")
   filter("path", "← Back to facets", "review", nil, nil)
   assert(#menus == 5 and menus[5].prompt == "Filter Neovim Dojo by facet", "Back and Escape return to the facets")
-  assert(vim.deep_equal(menus[2].values, { "← Back to facets", "all", "neovim-fundamentals", "probe-path" }))
+  local path_values = { "← Back to facets", "all" }
+  for _, path in ipairs(session.paths()) do
+    path_values[#path_values + 1] = path.id
+  end
+  assert(vim.deep_equal(menus[2].values, path_values), "the path menu lists every path in order")
   assert(vim.deep_equal(menus[4].values, { "← Back to facets", "new", "changed", "verified", "issue", "all" }))
   filter("completion", "complete")
   assert(vim.deep_equal(menus[2].values, { "← Back to facets", "incomplete", "complete", "all" }))
@@ -389,12 +390,15 @@ assert(last_notice().message == "Lesson unstarred" and picker.finder()[3].lesson
 
 picker.actions.dojo_completion(acting, first)
 assert(last_notice().message == "Task marked complete" and acting.titles[1] == "Tasks · availability:available")
-assert(session.lesson_state(first.lesson).completed and session.lesson_state(first.lesson).passes == 0, "no pass is invented")
+assert(
+  session.lesson_state(first.lesson).completed and session.lesson_state(first.lesson).passes == 0,
+  "no pass is invented"
+)
 assert(marker(first.lesson.id) == "○ ", "an unverified task asks for verification even when complete")
 ui.set_filter("completion", "complete")
 assert(vim.deep_equal(ids(picker), { first.lesson.id }), "the complete view shows only completed tasks")
 ui.set_filter("completion", "incomplete")
-assert(not vim.tbl_contains(ids(picker), first.lesson.id) and #tasks(picker) == 59)
+assert(not vim.tbl_contains(ids(picker), first.lesson.id) and #tasks(picker) == native.tasks)
 ui.set_filter("completion", "all")
 picker.actions.dojo_verify(acting, row(picker, first.lesson.id))
 assert(last_notice().message == "Task revision verified" and marker(first.lesson.id) == "✓ ", "verified and complete")
@@ -447,9 +451,15 @@ do
   assert(last_notice().message == "Lesson issue updated")
   assert(preview(picker, row(picker, "probe-available")).text:find("It needs an example.", 1, true))
   issue(nil)
-  assert(marker("probe-available") == "! " and last_notice().message == "Lesson issue updated", "Escape changes nothing")
+  assert(
+    marker("probe-available") == "! " and last_notice().message == "Lesson issue updated",
+    "Escape changes nothing"
+  )
   issue("  ")
-  assert(last_notice().message == "Lesson issue removed" and marker("probe-available") == "○ ", "empty text removes it")
+  assert(
+    last_notice().message == "Lesson issue removed" and marker("probe-available") == "○ ",
+    "empty text removes it"
+  )
   vim.ui.input = original_input
 end
 
@@ -617,11 +627,9 @@ assert(
 assert(confirming.closes == 1 and vim.fn.maparg(",n", "n") == "", "outside a path there is no next key")
 session.quit()
 picker.confirm(handle(), entry)
-assert(
-  vim.wait(1000, function()
-    return vim.api.nvim_buf_get_name(0) == "neovim-dojo://probe-available"
-  end)
-)
+assert(vim.wait(1000, function()
+  return vim.api.nvim_buf_get_name(0) == "neovim-dojo://probe-available"
+end))
 assert(vim.fn.maparg(",n", "n") ~= "", "a task started from a path row keeps its path")
 session.quit()
 picker.confirm(handle(), items[2])
