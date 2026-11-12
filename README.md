@@ -387,7 +387,23 @@ NVIM_BIN=/path/to/nvim tests/run.sh tests/registry.lua
 ```
 
 The tests start Neovim with `--clean` and a private state directory. They need
-no other plugin.
+no other plugin. With `python3`, `tests/idle.py` also opens a task in a real
+terminal and checks that the editor stays idle.
+
+### What an open task costs
+
+While a task is open, the session listens to cursor, text, window and idle
+events and checks the outcome after each. It is built to stay cheap:
+
+- a burst of events shares one deferred check, and an idle tick (`SafeState`)
+  checks at once without scheduling anything, so an open task does not keep the
+  editor awake;
+- whether a buffer belongs to a file-backed fixture is resolved on disk once
+  per buffer name, not on every event.
+
+`tests/events.lua` counts both. A hook of your own (`on_event`, a workspace
+extension's `observe` or `check`, a custom checker) runs just as often, so keep
+it to reading editor state.
 
 ## Credits
 

@@ -327,20 +327,35 @@ local function normalized(path)
 
   -- macOS exposes /var through /private/var. Buffers use the canonical path,
   -- while tempname() may return the shorter alias, so compare real paths when
-  -- the file or directory already exists.
-  return uv.fs_realpath(absolute) or absolute
+  -- the file or directory already exists. The second value says whether it
+  -- did.
+  local real = uv.fs_realpath(absolute)
+  return real or absolute, real ~= nil
 end
 
+-- Every event of a session asks this for the current buffer, so the answer is
+-- remembered per buffer name. Resolving a path walks its directories on disk,
+-- which is slow on a network file system. Only an absolute name of an existing
+-- file is remembered: any other name resolves against the working directory,
+-- or may resolve differently once the file exists.
 local function project_relative_path(context, buf)
   if not context.project_root or not vim.api.nvim_buf_is_valid(buf) then
     return nil
   end
-  local name = normalized(vim.api.nvim_buf_get_name(buf))
-  local prefix = normalized(context.project_root) .. "/"
-  if name:sub(1, #prefix) ~= prefix then
-    return nil
+  local raw = vim.api.nvim_buf_get_name(buf)
+  local cache = context.relative_paths
+  local cached = cache and cache[buf]
+  if cached and cached.name == raw then
+    return cached.relative or nil
   end
-  return name:sub(#prefix + 1)
+  local name, exists = normalized(raw)
+  -- The root was resolved when the session created it.
+  local prefix = context.project_root .. "/"
+  local relative = name:sub(1, #prefix) == prefix and name:sub(#prefix + 1) or nil
+  if cache and exists and raw:sub(1, 1) == "/" then
+    cache[buf] = { name = raw, relative = relative or false }
+  end
+  return relative
 end
 
 local function project_position(context, position)
@@ -958,12 +973,31 @@ function M.manage_current_issue()
   return true
 end
 
+-- Most events arrive in the middle of a command, so their check is deferred
+-- until the command is done. One deferred check serves a whole burst of events.
 local function schedule_check(context)
+  context.check_due = true
+  if context.check_scheduled then
+    return
+  end
+  context.check_scheduled = true
   vim.schedule(function()
-    if current == context then
+    context.check_scheduled = false
+    if current == context and context.check_due then
+      context.check_due = false
       M.check()
     end
   end)
+end
+
+-- SafeState is the idle boundary itself, so its check runs at once. It must
+-- not be deferred: a scheduled callback wakes the editor, the editor raises
+-- SafeState again when it has run, and an open task would never be idle.
+local function check_when_idle(context)
+  context.check_due = false
+  if current == context then
+    M.check()
+  end
 end
 
 local function apply_session_mappings(buf)
@@ -1042,7 +1076,11 @@ local function install_session_autocmds(context)
       if M.options.on_event then
         M.options.on_event(context, event)
       end
-      schedule_check(context)
+      if event.event == "SafeState" then
+        check_when_idle(context)
+      else
+        schedule_check(context)
+      end
     end,
   })
   vim.api.nvim_create_autocmd("BufWipeout", {
@@ -1466,6 +1504,7 @@ function M.start(id, path_id)
     entry_relative = entry_relative,
     auxiliary_buffers = {},
     mapped_buffers = {},
+    relative_paths = {},
     saved_registers = saved_registers,
     phase = "target",
     completed = false,
