@@ -26,5 +26,13 @@ jobs:
           tar -xzf nvim.tar.gz -C "$RUNNER_TEMP/nvim" --strip-components=1
           rm nvim.tar.gz
           echo "$RUNNER_TEMP/nvim/bin" >> "$GITHUB_PATH"
+      # The picker is tested against real snacks.nvim, at a fixed commit.
+      - name: Fetch snacks.nvim
+        run: |
+          git init -q "$RUNNER_TEMP/snacks.nvim"
+          git -C "$RUNNER_TEMP/snacks.nvim" fetch -q --depth 1 \
+            https://github.com/folke/snacks.nvim 882c996cf28183f4d63640de0b4c02ec886d01f2
+          git -C "$RUNNER_TEMP/snacks.nvim" checkout -q FETCH_HEAD
+          echo "DOJO_TEST_SNACKS=$RUNNER_TEMP/snacks.nvim" >> "$GITHUB_ENV"
       - name: Run the tests
         run: tests/run.sh

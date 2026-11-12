@@ -384,11 +384,15 @@ test runner's discovery, away from fixtures.
 ```sh
 tests/run.sh                                   # all tests, with `nvim`
 NVIM_BIN=/path/to/nvim tests/run.sh tests/registry.lua
+DOJO_TEST_SNACKS=/path/to/snacks.nvim tests/run.sh   # also open the real picker
 ```
 
 The tests start Neovim with `--clean` and a private state directory. They need
-no other plugin. With `python3`, `tests/idle.py` also opens a task in a real
-terminal and checks that the editor stays idle.
+no other plugin: `tests/picker.lua` tests the picker against a recorder in
+place of Snacks. `tests/picker_snacks.lua` opens the real Snacks picker and
+types into it; it is skipped unless `DOJO_TEST_SNACKS` names a snacks.nvim
+checkout. With `python3`, `tests/idle.py` also opens a task in a real terminal
+and checks that the editor stays idle.
 
 ### What an open task costs
 
