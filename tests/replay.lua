@@ -385,14 +385,20 @@ end
 -- A request waits for as long as the editor waits at a "Press ENTER" prompt.
 -- Answer that prompt first, as a person does before going on.
 function Remote:lua(code, ...)
-  local deadline = vim.uv.now() + self.timeout
-  while vim.uv.now() < deadline do
-    local mode = vim.rpcrequest(self.channel, "nvim_get_mode")
+  local deadline, mode = vim.uv.now() + self.timeout, nil
+  while true do
+    mode = vim.rpcrequest(self.channel, "nvim_get_mode")
     if not mode.blocking then
       break
     elseif mode.mode:sub(1, 1) == "r" then
       vim.rpcrequest(self.channel, "nvim_input", "<CR>")
     end
+    -- Anything else that blocks is waiting for a key that no solution is
+    -- about to type. Say so; the request itself would never return.
+    assert(
+      vim.uv.now() < deadline,
+      ("%s: the second editor is waiting for input in mode %s"):format(self.task or "setup", mode.mode)
+    )
     vim.wait(10)
   end
   return vim.rpcrequest(self.channel, "nvim_exec_lua", code, { ... })
@@ -472,6 +478,7 @@ function Remote:finished(id)
 end
 
 function Remote:lesson(id)
+  self.task = id
   assert(self:lua("return Dojo.start(...)", id), id .. ": the task did not start")
   self:type("<Esc>")
   assert(not self:lua("return Dojo.check()") and not self:done(id), id .. ": an untouched fixture must not pass")
@@ -497,6 +504,7 @@ function Remote:lesson(id)
 end
 
 function Remote:drill(id, generated)
+  self.task = id
   if generated then
     assert(self:lua("return Dojo.start(...)", id), id .. ": the task did not start")
   else
