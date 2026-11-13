@@ -1,9 +1,55 @@
 -- One real solution for every automatically checked task of the built-in
 -- pack; tests/replay.lua describes the format. Each task is listed under its
--- topic. `elsewhere` names tasks that another test file covers, and `manual`
--- the lessons a learner completes by hand.
-local M = { lessons = {}, drills = {}, manual = {}, elsewhere = {} }
-local L, D = M.lessons, M.drills
+-- topic. `runs` holds the drills whose rounds are generated: their solution
+-- reads the round and types its answer. `manual` names the lessons a learner
+-- completes by hand, each with the reason.
+local M = { lessons = {}, drills = {}, runs = {}, interactive = {}, manual = {} }
+local L, D, R = M.lessons, M.drills, M.runs
+
+-- The text of the open task's panel after `label`, up to the next separator.
+local function shown(replay, label)
+  return replay.panel():match(label .. " ([%w_]+)")
+end
+-- The first highlight of a generated round: its line and column, from 1 and 0.
+local function target(namespace)
+  local id = assert(vim.api.nvim_get_namespaces()[namespace], "no such namespace: " .. namespace)
+  local mark = assert(vim.api.nvim_buf_get_extmarks(0, id, 0, -1, {})[1], "the round shows no target")
+  return mark[2] + 1, mark[3]
+end
+local function count(number, key)
+  return number == 0 and "" or (number == 1 and key or number .. key)
+end
+
+-- Navigation
+R["hjkl-target-grid"] = function(replay)
+  local row, column = target("neovim-dojo.drill-target")
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local down, right = row - cursor[1], column - cursor[2]
+  replay.keys(count(math.abs(down), down > 0 and "j" or "k") .. count(math.abs(right), right > 0 and "l" or "h"))
+  replay.event("CursorMoved")
+end
+R["relative-line-delete"] = function(replay)
+  local row = target("neovim-dojo.drill-text-target")
+  local distance = row - vim.api.nvim_win_get_cursor(0)[1]
+  replay.keys(count(math.abs(distance), distance > 0 and "j" or "k") .. "dd")
+end
+-- Every target is the first letter of a word; `w` reaches it from the start.
+R["toggle-marked-character"] = function(replay)
+  local _, column = target("neovim-dojo.drill-text-target")
+  local _, words = vim.api.nvim_get_current_line():sub(1, column):gsub(" ", "")
+  replay.keys("0" .. count(words, "w") .. "~")
+end
+
+-- Editing
+R["delete-odd-word"] = function(replay)
+  local _, column = target("neovim-dojo.drill-text-target")
+  local _, words = vim.api.nvim_get_current_line():sub(1, column):gsub(" ", "")
+  replay.keys(count(words, "w") .. "dw")
+end
+R["change-inside-container"] = function(replay)
+  local brace = vim.api.nvim_get_current_line():find("{", 1, true)
+  replay.keys((brace and "ci{" or "ci[") .. "dojo<Esc>")
+end
 
 -- Line and Screen Motions
 L["line-start-end-motions"] = { "g_", wrong = { "$", "^" } }
@@ -53,6 +99,17 @@ L["jump-back-previous-position"] = {
   end,
 }
 L["revisit-older-change"] = { "$ciwnew<Esc>", "G$ciwnew<Esc>", "g;g;" }
+L["line-and-exact-marks"] = {
+  "ma",
+  "G",
+  "`a",
+  wrong = function(replay)
+    replay.keys("ma")
+    replay.keys("G")
+    replay.check()
+    replay.keys("'a")
+  end,
+}
 L["marks-as-ranges"] = { "jma", "jjd'a", wrong = "jmajjd`a" }
 D["mark-range-drill"] = { "jmajjd'a", "majjgU'a", "jmaj>'a" }
 
@@ -75,6 +132,14 @@ D["case-indent-drill"] = { "gUiw", "guu", ">j", "g~~" }
 D["number-adjust-drill"] = { "<C-a>", "20<C-x>", "VGg<C-a>", "<C-a>l<C-a>" }
 
 -- Registers
+L["retrieve-yank-register"] = { "yiw", "jdd", 'viw"0p', wrong = "yiwjddviwp" }
+L["append-named-register"] = { '"ayy', 'j"Ayy', 'G"ap', wrong = '"ayyj"ayyG"ap' }
+R["named-register-recall-drill"] = function(replay)
+  local register = shown(replay, "save in register")
+  replay.keys('"' .. register .. "yiw")
+  replay.keys("jdd")
+  replay.keys('$viw"' .. register .. "p")
+end
 L["put-before-after"] = { "Gdd", "ggP", wrong = "Gddggp" }
 L["black-hole-delete"] = { "yy", 'j"_dd', "p", wrong = 'yyjdd"0p' }
 L["numbered-delete-history"] = { "dddddd", '"3p', wrong = 'dddddd"1p' }
@@ -160,13 +225,29 @@ L["edit-closed-fold"] = { "jzc", "dd" }
 D["fold-control-drill"] = { "jzc", "zM", "zR", "6Gzo" }
 
 -- Windows
+L["create-vertical-split"] = "<C-w>v"
+L["balance-splits"] = "<C-w>="
+L["navigate-native-splits"] = "<C-w>l"
 L["close-other-windows"] = "<C-w>o"
 L["move-window-to-tab"] = { "<C-w>T", "gT" }
 L["tab-pages-navigate"] = { ":tabedit alpha.txt<CR>", "gT" }
 L["open-file-under-cursor"] = { "gf", "<C-^>" }
 L["resize-split-with-count"] = "10<C-w><"
 
+-- Project Views
+L["modified-buffer-safe-close"] = { "A retained<Esc>", ":close<CR>", wrong = ":close<CR>" }
+L["two-views-one-file"] = { "<C-w>v", "A shared<Esc>" }
+L["exchange-split-positions"] = { ":rightbelow vsplit alpha.txt<CR>", "<C-w>H" }
+L["tab-local-directory"] = { ":tcd src<CR>", wrong = ":lcd src<CR>" }
+D["reconstruct-layout-drill"] = { "<C-w>v", "<C-w>v<C-w>s", ":close<CR>" }
+D["retrieve-working-set-drill"] = {
+  { "AA<Esc>", ":tabedit alpha.txt<CR>", ":edit beta.txt<CR>", "gT" },
+  { "AB<Esc>", ":tabedit beta.txt<CR>", ":edit src/keep.txt<CR>", "gT" },
+}
+
 -- Buffers
+L["switch-hidden-buffer"] = ":buffer buffer-target<CR>"
+L["switch-alternate-buffer"] = "<C-^>"
 L["cycle-listed-buffers"] = ":bnext<CR>"
 L["delete-hidden-buffer"] = ":bdelete buffer-scrap<CR>"
 L["save-all-buffers"] = { "A saved<Esc>", ":edit alpha.txt<CR>A saved<Esc>", ":wall<CR>" }
@@ -183,16 +264,84 @@ D["quickfix-batch-drill"] = {
   ":cdo delete | update<CR>",
 }
 
--- Command-line Editing
+-- Command-line Editing. The command-line window does not open while one
+-- command feeds the keys, so these three are typed into a second editor:
+-- open the window, leave it with Ctrl-C for the pending command line, and
+-- cancel that with Escape.
+local function mode()
+  return vim.api.nvim_get_mode().mode
+end
+local function command_window(open, kind)
+  return function(replay)
+    replay.keys(open)
+    replay.wait("the command-line window", function()
+      return vim.fn.getcmdwintype() == kind
+    end)
+    replay.keys("<C-c>")
+    replay.wait("the pending command line", function()
+      return vim.fn.getcmdwintype() == "" and mode() == "c"
+    end)
+    replay.keys("<Esc>")
+    replay.wait("Normal mode", function()
+      return mode() == "n"
+    end)
+  end
+end
+L["open-command-history"] = command_window("q:", ":")
+L["edit-partial-command"] = function(replay)
+  replay.keys(":echo 'Neovim Dojo'")
+  replay.keys("<C-f>")
+  replay.wait("the command-line window", function()
+    return vim.fn.getcmdwintype() == ":"
+  end)
+  replay.keys("<CR>")
+  replay.wait("Normal mode", function()
+    return vim.fn.getcmdwintype() == "" and mode() == "n"
+  end)
+end
+L["open-search-history"] = { command_window("q/", "/"), command_window("q?", "?") }
+M.interactive["open-command-history"] = true
+M.interactive["edit-partial-command"] = true
+M.interactive["open-search-history"] = true
 L["cmdline-word-under-cursor"] = ":1,2s/<C-r><C-w>/total/g<CR>"
 L["cmdline-paste-register"] = { "yiW", "/<C-r>0<CR>", wrong = "/build<CR>" }
 L["help-tag-jump"] = { ":help word-motions<CR>", "<C-w>p" }
 
 -- Macros
+L["record-replay-macro"] = { "qa0dWgUiwI- <Esc>j0q", "@a", "@@" }
+L["count-inspect-macro"] = { "qa0dWgUiwI- <Esc>j0q", "5@a" }
+R["macro-normalization-drill"] = function(replay)
+  replay.keys("qa0dWgUiwI- <Esc>j0q")
+  replay.keys("@a")
+  replay.keys("@@")
+  replay.keys("2@a")
+  -- The drill waits for the editor to be idle after the last replay.
+  replay.event("SafeState")
+end
 L["macro-on-range"] = { "qagUiwI- <Esc>q", ":2,4normal @a<CR>" }
 L["append-to-macro"] = { "qaA!<Esc>q", "qAjq", "2@a" }
 
--- Undo History
+-- Undo History. Typing the final text makes no second branch and must fail.
+L["recover-undo-branch"] = {
+  "ciwalpha<Esc>",
+  "u",
+  "ciwbeta<Esc>",
+  "g-",
+  "yiw",
+  "g+",
+  "j$viwp",
+  wrong = "ciwbeta<Esc>j$ciwalpha<Esc>",
+}
+R["undo-branch-recovery-drill"] = function(replay)
+  local abandoned, chosen = shown(replay, "branch A:"), shown(replay, "branch B:")
+  replay.keys("ciw" .. abandoned .. "<Esc>")
+  replay.keys("u")
+  replay.keys("ciw" .. chosen .. "<Esc>")
+  replay.keys("g-")
+  replay.keys("yiw")
+  replay.keys("g+")
+  replay.keys("j$viwp")
+end
 L["undo-time-travel"] = { "A one<Esc>", "A two<Esc>", "A three<Esc>", ":earlier 2<CR>" }
 
 -- Comments and Blank Lines
@@ -206,37 +355,11 @@ D["comment-toggle-drill"] = { "gcc", "gcj", "dgc", "gcG" }
 L["diff-two-files"] = { ":vertical diffsplit other.txt<CR>", wrong = ":vsplit other.txt<CR>" }
 L["diff-obtain-put"] = { ":vertical diffsplit other.txt<CR>", "<C-w>p]cdo", "]cdp" }
 
-M.manual = { "jump-list-change-list", "inspect-open-buffers", "inspect-registers" }
--- Covered by lifecycle.lua, session.lua, registers.lua, macros.lua,
--- projects.lua and native.lua's own assertions.
-M.elsewhere = {
-  "hjkl-target-grid",
-  "relative-line-delete",
-  "toggle-marked-character",
-  "delete-odd-word",
-  "change-inside-container",
-  "line-and-exact-marks",
-  "recover-undo-branch",
-  "undo-branch-recovery-drill",
-  "switch-hidden-buffer",
-  "switch-alternate-buffer",
-  "retrieve-yank-register",
-  "append-named-register",
-  "named-register-recall-drill",
-  "record-replay-macro",
-  "count-inspect-macro",
-  "macro-normalization-drill",
-  "create-vertical-split",
-  "balance-splits",
-  "navigate-native-splits",
-  "open-command-history",
-  "edit-partial-command",
-  "open-search-history",
-  "modified-buffer-safe-close",
-  "two-views-one-file",
-  "exchange-split-positions",
-  "tab-local-directory",
-  "reconstruct-layout-drill",
-  "retrieve-working-set-drill",
+-- Lessons that ask the learner to look and compare. Nothing they leave
+-- behind tells a finished comparison from an unfinished one.
+M.manual = {
+  ["jump-list-change-list"] = "compares what the jump list and the change list remember",
+  ["inspect-open-buffers"] = "reads the `:ls` listing and its flags",
+  ["inspect-registers"] = "reads the `:registers` listing",
 }
 return M

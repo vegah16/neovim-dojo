@@ -422,12 +422,23 @@ DOJO_TEST_SNACKS=/path/to/snacks.nvim tests/run.sh   # also open the real picker
 ```
 
 `tests/solutions.lua` holds one solution, as typed keys, for every built-in
-task that is checked automatically. `tests/native.lua` types each one into the
-running task: the untouched fixture must fail, every step before the last
-must fail, a similar but wrong result must fail, and the solution must pass.
-A new built-in task needs three things: the task in its topic file, a line in
-one of the three level paths, and its solution. The tests fail while one is
-missing.
+task: `lessons`, `drills` (scenario drills, one solution per scene) and `runs`
+(drills that generate their rounds; the solution reads the round from the
+buffer and types its answer). `manual` names the lessons a learner completes
+by hand, each with the reason. `tests/native.lua` types each solution into
+the running task: the untouched fixture must fail, every step before the last
+must fail, a similar but wrong result must fail, the solution must pass, and
+a reset must fail again. A new built-in task needs three things: the task in
+its topic file, a line in one of the three level paths, and its solution. The
+tests fail while one is missing.
+
+Some solutions cannot be typed by one command that feeds all keys: a
+command-line window does not open, and a prompt or a label that appears after
+the first keys cannot be read. Name such a task in `interactive`.
+`replay.remote()` starts a second editor (`nvim --headless --embed`) and
+types those into it over RPC. That editor has a main loop, so it raises its
+own events, and a solution function can wait (`replay.wait`) and read what is
+on the screen before it types on.
 
 A configuration can replay the same file under its own mappings and plugins,
 to find built-in lessons that its setup changes:
@@ -436,7 +447,16 @@ to find built-in lessons that its setup changes:
 local dir = "/path/to/neovim-dojo"
 local replay = dofile(dir .. "/tests/replay.lua")
 replay.all(dofile(dir .. "/tests/solutions.lua"))
+local remote = replay.remote({ vim.v.progpath, "--headless", "--embed" }, dir .. "/tests/solutions.lua")
+remote:all()
+remote:close()
 ```
+
+A driver that types into a real terminal can use the same solutions:
+`replay.begin(solutions, id)` turns one into a coroutine, and `replay.next()`
+returns what to do next: `{ keys = ... }` to type, `{ wait = ... }` to ask
+again shortly, `{ step = n, of = m }` between the steps of a lesson, and
+`{ done = true }`. Nothing in the editor is changed by these calls.
 
 The tests start Neovim with `--clean` and a private state directory. They need
 no other plugin: `tests/picker.lua` tests the picker against a recorder in
