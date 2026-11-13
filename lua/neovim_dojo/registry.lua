@@ -103,6 +103,15 @@ local function validate_lesson(lesson)
         type(lesson.drill.rounds) == "number" and lesson.drill.rounds > 0 and lesson.drill.rounds % 1 == 0,
         "drill rounds must be a positive integer: " .. lesson.id
       )
+      for motion, key in pairs(lesson.drill.repeat_keys or {}) do
+        assert(
+          lesson.drill.variant == "character_motion"
+            and motion:match("^[fFtT]$")
+            and type(key) == "string"
+            and key ~= "",
+          "repeat_keys names the key that repeats f, F, t or T: " .. lesson.id
+        )
+      end
       if lesson.drill.variant == "register_recall" or lesson.drill.variant == "macro_lines" then
         local needed = lesson.drill.rounds
         if lesson.drill.variant == "register_recall" then

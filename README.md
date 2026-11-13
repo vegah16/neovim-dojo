@@ -262,7 +262,7 @@ A drill names a runner and its workload:
 | `drill.kind` | Rounds of |
 | --- | --- |
 | `cursor_targets` | Reaching a target on a grid, always the same distance away |
-| `text_actions` | One edit per round. `variant`: `relative_line`, `odd_word`, `change_inside`, `marked_case`, `move_visual_line`, `character_motion`, `register_recall`, `macro_lines` |
+| `text_actions` | One edit per round. `variant`: `relative_line`, `odd_word`, `change_inside`, `marked_case`, `move_visual_line`, `character_motion`, `register_recall`, `macro_lines`. For `character_motion`, `repeat_keys = { F = "f" }` names the key that repeats a motion where it is not the motion key itself |
 | `search_targets` | Reaching a highlighted word among distractors, for search and jump tools |
 | `window_targets` | Reaching a target in another window |
 | `remote_actions` | Deleting, yanking or changing distant text and returning |

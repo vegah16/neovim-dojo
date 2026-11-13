@@ -202,7 +202,10 @@ local function render_move_line(instance)
 end
 
 local function check_move_line(instance, event)
-  if event.event ~= "TextChanged" then
+  -- A mapping that moves a line goes on after the text has changed (`:m`,
+  -- then `gv=gv`). Wait until the editor is idle; otherwise the rest of the
+  -- mapping runs on the next board and leaves the cursor on its first line.
+  if event.event ~= "SafeState" then
     return false
   end
   local lines = vim.api.nvim_buf_get_lines(instance.context.buf, 0, -1, false)
@@ -326,7 +329,10 @@ local function character_motion_prompt(instance)
   if not expected then
     return "repeat the requested character motion to the yellow target"
   end
-  return ("use %s{char}, then repeat %s to reach the yellow target"):format(expected.motion, expected.motion)
+  -- The key that repeats a motion depends on the editor: natively `;`, with
+  -- a plugin often the motion key itself or its lowercase form.
+  local again = (instance.specification.repeat_keys or {})[expected.motion] or expected.motion
+  return ("use %s{char}, then repeat %s to reach the yellow target"):format(expected.motion, again)
 end
 
 local function dismiss_character_motion_overlay()
