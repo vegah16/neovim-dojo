@@ -358,8 +358,19 @@ local function project_relative_path(context, buf)
   return relative
 end
 
+-- A fixture file is an ordinary file buffer inside the project. A plugin's own
+-- buffer may carry a relative name ("Grug FAR - 1: word") that resolves into
+-- the fixture because the task's directory is the working directory. It is
+-- not a file of the task, and its buffer-local keys must stay its own.
+local function project_file(context, buf)
+  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "" then
+    return nil
+  end
+  return project_relative_path(context, buf)
+end
+
 local function project_position(context, position)
-  local relative = project_relative_path(context, vim.api.nvim_get_current_buf())
+  local relative = project_file(context, vim.api.nvim_get_current_buf())
   if relative ~= position.file then
     return false
   end
@@ -1034,7 +1045,7 @@ local function apply_session_mappings(buf)
   if
     current
     and current.drill_runtime
-    and (current.buf == buf or owns_auxiliary_buffer or project_relative_path(current, buf) or drill_owns_buffer)
+    and (current.buf == buf or owns_auxiliary_buffer or project_file(current, buf) or drill_owns_buffer)
   then
     current.drill_runtime:apply_mappings(buf)
   end
@@ -1065,7 +1076,7 @@ local function install_session_autocmds(context)
         and context.drill_runtime.owns_buffer
         and context.drill_runtime:owns_buffer(buf)
       local owns_auxiliary_buffer = vim.tbl_contains(context.auxiliary_buffers or {}, buf)
-      if buf == context.buf or owns_auxiliary_buffer or project_relative_path(context, buf) or drill_owns_buffer then
+      if buf == context.buf or owns_auxiliary_buffer or project_file(context, buf) or drill_owns_buffer then
         apply_session_mappings(buf)
         if context.drill_runtime then
           context.drill_runtime:on_event(event)

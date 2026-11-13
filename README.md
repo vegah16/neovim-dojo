@@ -404,6 +404,11 @@ An extension may also have `observe(context, event)` to record what the learner
 did, `check(context, check)` to add outcome fields (return `false` to refuse),
 and `models[name](context, scene)` to prepare scenes whose `model` is `name`.
 
+The task controls are mapped in the task's own buffer and in every ordinary
+file buffer inside the fixture. A plugin's own buffer (one with a `buftype`,
+such as a search panel) keeps its keys, also when its name resolves into the
+fixture.
+
 `require("neovim_dojo.session").owns_path(path)` is true for any path inside a
 fixture that this editor session created. Use it to keep other tools, such as a
 test runner's discovery, away from fixtures.

@@ -106,8 +106,25 @@ vim.cmd.enew()
 fire("CursorMoved")
 assert(vim.fn.maparg(",r", "n") == "", "an unnamed buffer is not a fixture file")
 
+
+-- A plugin's own buffer keeps its keys, also when its relative name resolves
+-- into the fixture: the task's directory is the working directory.
+vim.cmd.enew()
+local panel = vim.api.nvim_get_current_buf()
+vim.bo[panel].buftype = "nofile"
+vim.api.nvim_buf_set_name(panel, root .. "/Search panel - 1")
+vim.keymap.set("n", ",r", "<Nop>", { buffer = panel, desc = "Replace" })
+fire("BufEnter")
+fire("CursorMoved")
+assert(
+  vim.fn.maparg(",r", "n", false, true).desc == "Replace",
+  "a plugin buffer named inside the fixture keeps its own keys"
+)
+assert(vim.fn.maparg(",q", "n") == "", "and gets no task controls")
+
 vim.schedule, uv.fs_realpath, session.check = schedule, realpath, check
 session.quit()
+assert(not vim.api.nvim_buf_is_valid(panel), "closing the task still removes a buffer named inside the fixture")
 vim.fn.delete(outside)
 session.clear_progress(true)
 print("DOJO EVENT COST OK")
