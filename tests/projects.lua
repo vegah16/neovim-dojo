@@ -169,6 +169,34 @@ assert(not dojo.start("two-views-one-file"), "direct starts must respect missing
 assert(vim.api.nvim_get_current_buf() == retained, "unavailable starts must preserve the active fixture")
 dojo.options.requirements = original_requirements
 dojo.quit()
+-- A tab directory below the fixture root makes an empty buffer name resolve
+-- into the fixture. The unnamed buffer of another tab is still not a fixture
+-- file: reset and quit must leave it, its tab and the directories alone.
+local outside_tab, outside_buf = vim.api.nvim_get_current_tabpage(), vim.api.nvim_get_current_buf()
+assert(vim.api.nvim_buf_get_name(outside_buf) == "", "the tab outside the task shows an unnamed buffer")
+vim.api.nvim_buf_set_lines(outside_buf, 0, -1, false, { "unsaved notes" })
+local directory = vim.fn.getcwd()
+assert(dojo.start("tab-local-directory"))
+vim.cmd("tcd src")
+assert(dojo.check(), "the tab directory completes the lesson")
+dojo.reset()
+assert(
+  vim.api.nvim_tabpage_is_valid(outside_tab) and vim.api.nvim_buf_is_valid(outside_buf),
+  "reset must not close a tab that shows an unnamed buffer"
+)
+vim.cmd("tcd src")
+dojo.quit()
+assert(
+  vim.api.nvim_get_current_tabpage() == outside_tab
+    and vim.deep_equal(vim.api.nvim_buf_get_lines(outside_buf, 0, -1, false), { "unsaved notes" }),
+  "quit returns to the other tab with its unsaved text"
+)
+assert(
+  vim.fn.getcwd() == directory and (vim.uv or vim.loop).cwd() == directory and vim.fn.haslocaldir(-1) == 0,
+  "and to the directory the editor had, not a fixture directory that is about to be deleted"
+)
+vim.api.nvim_buf_set_lines(outside_buf, 0, -1, false, {})
+vim.bo[outside_buf].modified = false
 print("DOJO PROJECT RECOVERY AND REQUIREMENTS OK")
 
 -- A configuration adds plugin-specific fixture handling through extend().

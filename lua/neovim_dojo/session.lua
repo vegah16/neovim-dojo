@@ -343,6 +343,11 @@ local function project_relative_path(context, buf)
     return nil
   end
   local raw = vim.api.nvim_buf_get_name(buf)
+  -- A buffer without a name is nobody's file. Its empty name would resolve
+  -- to the working directory, which is inside the fixture after `:tcd src`.
+  if raw == "" then
+    return nil
+  end
   local cache = context.relative_paths
   local cached = cache and cache[buf]
   if cached and cached.name == raw then
