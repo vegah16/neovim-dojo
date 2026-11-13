@@ -39,8 +39,8 @@ return {
       "Move and exchange splits",
       "Move the second file view to the left of the main file view.",
       {
-        "Open `:vsplit alpha.txt`; use `<C-w>H` to move that file view to the far left.",
-        "`<C-w>x` exchanges windows; uppercase H/J/K/L move a split to an edge. Finish with alpha left and main right.",
+        "Open `:rightbelow vsplit alpha.txt`. The new view opens to the right of main, whatever 'splitright' says.",
+        "Use `<C-w>H` to move that file view to the far left. `<C-w>x` exchanges windows; uppercase H/J/K/L move a split to an edge. Finish with alpha left and main right.",
       },
       { "main" },
       {
@@ -54,7 +54,8 @@ return {
             and vim.api.nvim_win_get_buf(wins[2]) == c.buf
         end,
       },
-      { files = files }
+      { files = files },
+      { revision = 2 }
     ),
     w.lesson(
       "tab-local-directory",
