@@ -18,7 +18,8 @@ cd "$root"
 full=0
 [ "$#" -gt 0 ] || full=1
 [ "$#" -gt 0 ] || set -- tests/registry.lua tests/session.lua tests/lifecycle.lua tests/registers.lua \
-  tests/macros.lua tests/native.lua tests/projects.lua tests/events.lua tests/picker.lua tests/picker_snacks.lua
+  tests/macros.lua tests/native.lua tests/projects.lua tests/events.lua tests/panel.lua tests/picker.lua \
+  tests/picker_snacks.lua
 for test_file in "$@"; do
   env XDG_CONFIG_HOME="$home/config" XDG_DATA_HOME="$home/data" XDG_STATE_HOME="$home/state" \
     XDG_CACHE_HOME="$home/cache" DOJO_TEST_FILE="$test_file" \

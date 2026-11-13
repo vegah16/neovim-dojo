@@ -73,6 +73,15 @@ the controls and the status. Controls start with the prefix, a comma by default:
 A lesson completes by itself when its outcome is reached. Lessons that only ask
 you to look at something are completed by hand with `,m`.
 
+The panel is laid out for the window you read it in: it wraps to the width of
+the current window and, when the whole panel would not fit above the text,
+gets shorter in steps. First the controls shrink to one line, then the empty
+lines between the sections go, and at last the end of `HOW` is cut and a line
+says that `,h` shows all of it. `GOAL` and the text of the task stay on the
+screen, also in an 80x24 terminal. In a window that cannot hold the whole
+panel, `,h` opens the complete instructions, hint and controls in a window of
+their own; `q` closes it.
+
 The comma shadows Vim's own `,` (repeat `f`/`t` backwards) inside a task. Set
 `prefix` if you want another key.
 

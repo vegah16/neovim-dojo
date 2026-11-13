@@ -461,16 +461,57 @@ local function append_wrapped_instruction(lines, lead, text, continuation_lead)
   flush()
 end
 
-local function instruction_lines(context, status)
-  local width = 80
+-- The window the panel is laid out for: the current one when it shows the
+-- task, else the one it was laid out for last, else the widest. The panel is
+-- one set of virtual lines for every window of the buffer, so it can only fit
+-- one of them; the learner reads it where the cursor is.
+local function panel_window(context)
+  if not vim.api.nvim_tabpage_is_valid(context.tab) then
+    return nil
+  end
+  local shows = {}
+  local widest
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(context.tab)) do
-    if vim.api.nvim_win_get_buf(win) == context.buf then
-      width = math.min(width, vim.api.nvim_win_get_width(win))
+    if vim.api.nvim_win_get_buf(win) == context.buf and vim.api.nvim_win_get_config(win).relative == "" then
+      shows[win] = true
+      if not widest or vim.api.nvim_win_get_width(win) > vim.api.nvim_win_get_width(widest) then
+        widest = win
+      end
     end
   end
-  instruction_width = math.max(24, math.min(72, width - 8))
+  local current_win = vim.api.nvim_get_current_win()
+  if shows[current_win] then
+    return current_win
+  end
+  return shows[context.panel_win] and context.panel_win or widest
+end
+
+-- Rows of the window left for the panel: the fixture stays in view down to
+-- the cursor line and the lines 'scrolloff' keeps below it, and a long line
+-- may take several rows.
+local function panel_room(win)
+  local height = vim.api.nvim_win_get_height(win)
+  local cursor_line = vim.api.nvim_win_get_cursor(win)[1]
+  local scrolloff = vim.api.nvim_get_option_value("scrolloff", { win = win })
+  local buf = vim.api.nvim_win_get_buf(win)
+  local below = math.min(scrolloff, math.floor((height - 1) / 2))
+  local last = math.min(vim.api.nvim_buf_line_count(buf), cursor_line + below)
+  local text = vim.api.nvim_win_text_height(win, { start_row = 0, end_row = last - 1 })
+  local rows = math.max(text.all - (text.fill or 0), last)
+  return math.max(height - rows, 0)
+end
+
+-- `layout` is "full", "compact" (one line of controls; `,h` shows them all)
+-- or "dense" (compact without the empty lines between sections).
+local function instruction_lines(context, status, layout, width)
+  layout = layout or "full"
+  instruction_width = math.max(24, math.min(72, (width or 80) - 8))
   local function instruction(text)
     return text == "" and instruction_prefix or (instruction_prefix .. " " .. text)
+  end
+  local function divider(text)
+    local side = math.max(1, math.min(24, math.floor((instruction_width - 2 - #text - 2) / 2)))
+    return instruction(("─"):rep(side) .. " " .. text .. " " .. ("─"):rep(side))
   end
 
   if context.drill_active then
@@ -484,6 +525,12 @@ local function instruction_lines(context, status)
 
   local item = M.lesson_state(context.lesson)
   local lines = {}
+  local function section(name)
+    if layout ~= "dense" then
+      lines[#lines + 1] = instruction("")
+    end
+    lines[#lines + 1] = instruction(name)
+  end
   append_wrapped_instruction(lines, "", "NEOVIM DOJO")
   append_wrapped_instruction(
     lines,
@@ -506,29 +553,39 @@ local function instruction_lines(context, status)
   vim.list_extend(lines, { instruction(""), instruction("GOAL") })
   local essential_start = #lines
   append_wrapped_instruction(lines, "  ", context.lesson.objective)
-  vim.list_extend(lines, { instruction(""), instruction("HOW") })
+  section("HOW")
+  local how_start = #lines + 1
   for index, step in ipairs(context.lesson.steps or {}) do
     append_wrapped_instruction(lines, ("  %d. "):format(index), step, "     ")
   end
-  if context.show_hint and context.lesson.hint then
-    vim.list_extend(lines, { instruction(""), instruction("HINT") })
+  local how_end = #lines
+  -- A panel too tall for its window leaves the hint to the `,h` window.
+  if context.show_hint and context.lesson.hint and layout == "full" then
+    section("HINT")
     append_wrapped_instruction(lines, "  ", context.lesson.hint)
   end
-  vim.list_extend(lines, { instruction(""), instruction("CONTROLS") })
+  local controls_start = #lines + 1
+  section("CONTROLS")
   local controls =
     "`,h` hint · `,r` reset · `,m` toggle completion · `,s` toggle favourite · `,v` toggle verification · `,i` manage issue · `,c` tasks · `,q` quit"
   if context.lesson.kind == "drill" then
     controls =
       "`<CR>` start/replay · `,h` instructions/hint · `,r` abort/reset · `,m` toggle completion · `,s` toggle favourite · `,v` toggle verification · `,i` manage issue · `,c` tasks · `,q` quit"
-    if context.lesson.drill.kind == "scenarios" then
-      controls = "`,k` check round · " .. controls
-    end
+  end
+  if layout ~= "full" then
+    controls = context.lesson.kind == "drill"
+        and "`<CR>` start/replay · `,h` instructions and all keys · `,r` abort/reset · `,c` tasks · `,q` quit"
+      or "`,h` hint and all keys · `,r` reset · `,c` tasks · `,q` quit"
+  end
+  if context.lesson.kind == "drill" and context.lesson.drill.kind == "scenarios" then
+    controls = "`,k` check round · " .. controls
   end
   if context.path then
     controls = controls:gsub(" · `,c`", " · `,n` next path task · `,c`")
   end
   append_wrapped_instruction(lines, "  ", controls)
-  vim.list_extend(lines, { instruction(""), instruction("STATUS") })
+  local controls_end = #lines
+  section("STATUS")
   local canonical_status = ("Complete: %s · Verified: %s"):format(
     item.completed and "yes" or "no",
     item.review == "verified" and "yes" or "no"
@@ -546,13 +603,71 @@ local function instruction_lines(context, status)
         or ("Last: %s · Best: %s"):format(drills.format_score(record.last), drills.format_score(record.best))
     )
   end
-  vim.list_extend(lines, {
-    instruction(""),
-    instruction(
-      "──────────────────────── EXERCISE ────────────────────────"
-    ),
-  })
-  return lines, essential_start
+  if layout ~= "dense" then
+    lines[#lines + 1] = instruction("")
+  end
+  lines[#lines + 1] = divider("EXERCISE")
+  return lines, essential_start, { how = { how_start, how_end }, controls = { controls_start, controls_end } }
+end
+
+-- Dense lines cut down to `room`: the last lines of HOW go first, then
+-- CONTROLS, and one line says that `,h` shows the rest. GOAL always stays.
+local function shortened_instruction_lines(lines, essential_start, parts, room)
+  local over = (#lines - essential_start + 1) - room
+  local drop = {}
+  local function marker()
+    local text = {}
+    append_wrapped_instruction(text, "     ", "… `,h` shows all of it")
+    return text[1]
+  end
+  -- The marker takes a line of its own.
+  local cut = math.min(over + 1, parts.how[2] - parts.how[1] + 1)
+  for index = parts.how[2] - cut + 1, parts.how[2] do
+    drop[index] = true
+  end
+  if cut - 1 < over then
+    for index = parts.controls[1], parts.controls[2] do
+      drop[index] = true
+    end
+  end
+  local result = {}
+  for index, line in ipairs(lines) do
+    if not drop[index] then
+      result[#result + 1] = line
+    end
+    if index == parts.how[2] then
+      result[#result + 1] = marker()
+    end
+  end
+  return result, essential_start
+end
+
+-- The panel for the window that shows it. A spacious window gets the full
+-- panel. When GOAL through STATUS would not fit above the fixture, the
+-- controls shrink to one line, then the empty lines go, then HOW is cut.
+local function fitted_instruction_lines(context, status)
+  local win = panel_window(context)
+  context.panel_win = win
+  local width = win and vim.api.nvim_win_get_width(win) or 80
+  context.panel_fit = win and { win, width, vim.api.nvim_win_get_height(win) } or nil
+  local lines, essential_start, parts = instruction_lines(context, status, "full", width)
+  context.panel_layout = "full"
+  if context.drill_active or not win then
+    return lines, essential_start
+  end
+  local room = panel_room(win)
+  if room == 0 or #lines - essential_start + 1 <= room then
+    return lines, essential_start
+  end
+  for _, layout in ipairs({ "compact", "dense" }) do
+    lines, essential_start, parts = instruction_lines(context, status, layout, width)
+    context.panel_layout = layout
+    if #lines - essential_start + 1 <= room then
+      return lines, essential_start
+    end
+  end
+  context.panel_layout = "short"
+  return shortened_instruction_lines(lines, essential_start, parts, room)
 end
 
 local function contains_identifier(content, identifier)
@@ -658,7 +773,9 @@ local function instruction_chunks(line)
   return chunks
 end
 
-local function reveal_instructions(context, total_count, essential_count)
+-- With `only_at_top`, a window that has scrolled away from the panel is left
+-- alone: the panel changed because a window changed size, not the task.
+local function reveal_instructions(context, total_count, essential_count, only_at_top)
   local scroll_up = vim.api.nvim_replace_termcodes("<C-y>", true, false, true)
   local function reveal()
     if not vim.api.nvim_tabpage_is_valid(context.tab) or not vim.api.nvim_buf_is_valid(context.buf) then
@@ -669,7 +786,10 @@ local function reveal_instructions(context, total_count, essential_count)
         vim.api.nvim_win_call(win, function()
           local cursor = vim.api.nvim_win_get_cursor(win)
           local view = vim.fn.winsaveview()
-          local available = math.max(vim.api.nvim_win_get_height(win) - cursor[1], 0)
+          if only_at_top and view.topline > 1 then
+            return
+          end
+          local available = panel_room(win)
           local desired = available >= total_count and total_count or math.min(essential_count, available)
           local scroll = math.max(view.topline - 1, 0) + desired
           if scroll > 0 then
@@ -694,7 +814,7 @@ local function render(context, status, reveal)
   if not vim.api.nvim_buf_is_valid(context.buf) then
     return
   end
-  local raw_lines, essential_start = instruction_lines(context, status)
+  local raw_lines, essential_start = fitted_instruction_lines(context, status)
   local virtual_lines = vim.tbl_map(function(line)
     return instruction_chunks(line)
   end, raw_lines)
@@ -707,8 +827,45 @@ local function render(context, status, reveal)
   end
   context.instruction_mark = vim.api.nvim_buf_set_extmark(context.buf, instruction_namespace, 0, 0, options)
   if reveal then
-    reveal_instructions(context, #virtual_lines, #virtual_lines - essential_start + 1)
+    reveal_instructions(context, #virtual_lines, #virtual_lines - essential_start + 1, reveal == "at_top")
   end
+end
+
+-- The panel follows the window it is read in. Entering a window of another
+-- width, or resizing it, wraps and fits the panel again; a running drill
+-- keeps its short status panel until its next status.
+local function refit(context)
+  if context.drill_active or context.refit_scheduled then
+    return
+  end
+  local win = panel_window(context)
+  local fit = context.panel_fit
+  if not win then
+    return
+  end
+  if
+    fit
+    and fit[1] == win
+    and fit[2] == vim.api.nvim_win_get_width(win)
+    and fit[3] == vim.api.nvim_win_get_height(win)
+  then
+    return
+  end
+  -- Not inside the event: a window command may still be arranging the layout.
+  context.refit_scheduled = true
+  vim.schedule(function()
+    context.refit_scheduled = false
+    -- Revealing the panel scrolls with a Normal-mode command. In any other
+    -- mode the panel waits for the next window event.
+    if
+      current == context
+      and not context.drill_active
+      and vim.api.nvim_tabpage_is_valid(context.tab)
+      and vim.api.nvim_get_mode().mode == "n"
+    then
+      render(context, nil, "at_top")
+    end
+  end)
 end
 
 local function observe_navigation(context)
@@ -1087,6 +1244,9 @@ local function install_session_autocmds(context)
       if M.options.on_event then
         M.options.on_event(context, event)
       end
+      if event.event == "WinEnter" or event.event == "WinResized" then
+        refit(context)
+      end
       if event.event == "SafeState" then
         check_when_idle(context)
       else
@@ -1271,6 +1431,8 @@ local function apply_lesson_setup(context)
   elseif setup and setup.kind == "unequal_vertical_splits" then
     vim.cmd.vsplit()
     vim.cmd("vertical resize 15")
+    -- Start in the wide window: the panel is laid out for the current one.
+    vim.cmd("wincmd p")
   elseif setup and vim.tbl_contains({ "native_window_navigation", "resize_vertical_splits" }, setup.kind) then
     vim.cmd.vsplit()
     vim.cmd("wincmd =")
@@ -1367,6 +1529,12 @@ function M.reset()
   render(context, nil, true)
 end
 
+-- How the panel of the open task is laid out: "full", "compact", "dense" or
+-- "short" (see fitted_instruction_lines); nil without a task.
+function M.panel_layout()
+  return current and current.panel_layout or nil
+end
+
 function M.hint()
   if current then
     local drill_active = current.drill_active
@@ -1374,13 +1542,15 @@ function M.hint()
     current.live_drill_status = drill_active and current.drill_runtime and current.drill_runtime:status() or nil
     current.drill_active = false
     render(current, nil, true)
-    if vim.api.nvim_get_current_buf() ~= current.buf then
+    -- Away from the task's buffer, or in a window too small for the whole
+    -- panel, the instructions open in a window of their own that scrolls.
+    if vim.api.nvim_get_current_buf() ~= current.buf or current.panel_layout ~= "full" then
       if current.hint_window and vim.api.nvim_win_is_valid(current.hint_window) then
         vim.api.nvim_set_current_win(current.hint_window)
       else
         local buf = vim.api.nvim_create_buf(false, true)
         current.auxiliary_buffers[#current.auxiliary_buffers + 1] = buf
-        local lines = instruction_lines(current, nil)
+        local lines = instruction_lines(current, nil, "full", 80)
         lines = vim.tbl_map(without_instruction_markup, lines)
         vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
         vim.bo[buf].modifiable = false
