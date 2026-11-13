@@ -12,7 +12,7 @@ return {
       "Remove the complete middle line with a linewise selection.",
       {
         "`v` selects characters, `V` selects lines, and `<C-v>` selects a rectangle.",
-        "On `remove this line`, press `Vd`. Keep both neighboring lines exactly intact.",
+        "On `remove this line`, press `Vd`. Keep both neighbouring lines exactly intact.",
       },
       { "keep before", "remove this line", "keep after" },
       { lines = { "keep before", "keep after" } },
