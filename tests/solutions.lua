@@ -277,10 +277,22 @@ local function command_window(open, kind)
     replay.wait("the command-line window", function()
       return vim.fn.getcmdwintype() == kind
     end)
-    replay.keys("<C-c>")
-    replay.wait("the pending command line", function()
+    -- Ctrl-C is also the interrupt key, and an editor that is still busy
+    -- opening the window takes it as that. Then it is pressed again.
+    local function pending()
       return vim.fn.getcmdwintype() == "" and mode() == "c"
-    end)
+    end
+    for _ = 1, 3 do
+      replay.keys("<C-c>")
+      local pressed = vim.uv.now()
+      replay.wait("the pending command line", function()
+        return pending() or vim.uv.now() - pressed > 1000
+      end)
+      if pending() then
+        break
+      end
+    end
+    assert(pending(), "Ctrl-C did not leave the command-line window")
     replay.keys("<Esc>")
     replay.wait("Normal mode", function()
       return mode() == "n"
