@@ -31,7 +31,10 @@ end
 R["relative-line-delete"] = function(replay)
   local row = target("neovim-dojo.drill-text-target")
   local distance = row - vim.api.nvim_win_get_cursor(0)[1]
-  replay.keys(count(math.abs(distance), distance > 0 and "j" or "k") .. "dd")
+  -- Two steps: in a window shorter than the board the jump scrolls, and a
+  -- config that animates scrolling needs it to finish before the next key.
+  replay.keys(count(math.abs(distance), distance > 0 and "j" or "k"))
+  replay.keys("dd")
 end
 -- Every target is the first letter of a word; `w` reaches it from the start.
 R["toggle-marked-character"] = function(replay)
