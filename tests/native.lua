@@ -55,6 +55,16 @@ do
   dojo.quit()
   dojo.clear_progress(true)
 end
+-- A tab page that the learner gave the task's buffer goes with the task.
+do
+  local tabs = #vim.api.nvim_list_tabpages()
+  assert(dojo.start("move-window-to-tab"))
+  keys("<C-w>T")
+  assert(#vim.api.nvim_list_tabpages() == tabs + 2, "the lesson's window has a tab page of its own")
+  dojo.quit()
+  assert(#vim.api.nvim_list_tabpages() == tabs, "quitting leaves no empty tab page behind")
+  dojo.clear_progress(true)
+end
 -- Setting a mark leaves the cursor in place; only the round trip may pass.
 assert(dojo.start("line-and-exact-marks"))
 keys("ma")

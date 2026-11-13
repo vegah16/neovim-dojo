@@ -271,11 +271,14 @@ function M.perform(solutions, id, wrong)
       for _, step in ipairs(list(solutions.drills[id][index])) do
         run(step)
       end
+      -- Two scenes may share a goal, so the round number says when the
+      -- next one is on the screen.
+      local round = M.panel():match("Round %d+/%d+")
       M.keys(controls.lhs("k"))
       M.wait("the round after " .. goal, function()
         local panel = M.panel()
         assert(not panel:find("outcome not reached", 1, true), id .. ": round not accepted: " .. goal)
-        return completed(task) or not panel:find(goal, 1, true)
+        return completed(task) or panel:match("Round %d+/%d+") ~= round
       end)
     end
   elseif solutions.runs and solutions.runs[id] then

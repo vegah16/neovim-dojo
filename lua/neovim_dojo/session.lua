@@ -1295,6 +1295,23 @@ local function stop_owned_recording(context)
   end
 end
 
+-- A learner may have given the task's buffer a tab page of its own, with
+-- `<C-w>T` or `:tab split`. Such a tab would stay behind, empty, when the
+-- buffer goes. A tab page that shows anything else is not the task's.
+local function close_extra_tabs(context)
+  for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
+    if tab ~= context.tab and vim.api.nvim_tabpage_is_valid(tab) and #vim.api.nvim_list_tabpages() > 1 then
+      local only_task = true
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
+        only_task = only_task and vim.api.nvim_win_get_buf(win) == context.buf
+      end
+      if only_task then
+        vim.cmd(("silent! %dtabclose!"):format(vim.api.nvim_tabpage_get_number(tab)))
+      end
+    end
+  end
+end
+
 function M.reset()
   local context = current
   if not context or not vim.api.nvim_tabpage_is_valid(context.tab) or not vim.api.nvim_buf_is_valid(context.buf) then
@@ -1305,6 +1322,7 @@ function M.reset()
     M.options.before_reset(context)
   end
   vim.api.nvim_set_current_tabpage(context.tab)
+  close_extra_tabs(context)
   vim.cmd("silent! only!")
   -- Deleting the last displayed auxiliary can close its tab. Put the primary
   -- back in the window first, so reset cannot migrate into the user's tab.
@@ -1407,6 +1425,7 @@ function M.quit()
   end
   if not context.primary_wiped and vim.api.nvim_tabpage_is_valid(context.tab) then
     vim.api.nvim_set_current_tabpage(context.tab)
+    close_extra_tabs(context)
     if #vim.api.nvim_list_tabpages() > 1 then
       vim.cmd("tabclose!")
     else
