@@ -1,5 +1,5 @@
 -- Active-session runtime for Neovim Dojo. Public setup and curriculum registration
--- live in neovim_dojo/init.lua; this module owns only active-session behavior.
+-- live in neovim_dojo/init.lua; this module owns only active-session behaviour.
 local M = {}
 
 local registry = require("neovim_dojo.registry")
